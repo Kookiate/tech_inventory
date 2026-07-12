@@ -1,0 +1,6 @@
+{
+  "name": "Spare Part Control Web App",
+  "description": "ระบบควบคุมสต็อกและประวัติการเบิก-รับอะไหล่ สำหรับช่างเทคนิคหน้างาน เชื่อมต่อกับ Google Sheets",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

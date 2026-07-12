@@ -1,0 +1,41 @@
+@import url('https://fonts.googleapis.com/css2?family=Mitr:wght@300;400;500;600&family=Sarabun:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Sarabun", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Mitr", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Custom animation for flashing below minimum stock rows */
+@keyframes blink {
+  0%, 100% {
+    background-color: rgba(239, 68, 68, 0.04);
+  }
+  50% {
+    background-color: rgba(239, 68, 68, 0.16);
+  }
+}
+
+.animate-blink-danger {
+  animation: blink 2s infinite ease-in-out;
+}
+
+/* Custom styles for general polish */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}

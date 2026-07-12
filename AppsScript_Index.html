@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบควบคุมคลังอะไหล่ - Spare Part Control Web App</title>
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Font Awesome Icons -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+  <!-- Google Fonts: Sarabun & Mitr for professional Thai typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Mitr:wght@400;500;600&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Chart.js for beautiful Standalone Apps Script Dashboard charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root {
+      --primary-color: #0d6efd;
+      --success-color: #198754;
+      --danger-color: #dc3545;
+      --warning-color: #ffc107;
+      --dark-gray: #212529;
+      --light-bg: #f8f9fa;
+    }
+
+    body {
+      font-family: 'Sarabun', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f0f2f5;
+      color: #333;
+      padding-bottom: 60px;
+    }
+
+    h1, h2, h3, h4, h5, .nav-link, .btn-brand {
+      font-family: 'Mitr', sans-serif;
+    }
+
+    /* สไตล์ปุ่มกดขนาดใหญ่พิเศษสำหรับช่างที่สวมถุงมือ */
+    .btn-giant-mode {
+      padding: 16px 24px;
+      font-size: 1.25rem;
+      font-weight: 600;
+      border-radius: 12px;
+      transition: all 0.2s ease-in-out;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    .btn-giant-mode:active {
+      transform: scale(0.97);
+    }
+
+    /* การ์ดและดีไซน์ bento */
+    .dashboard-card {
+      border: none;
+      border-radius: 16px;
+      background: white;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .dashboard-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+    }
+
+    /* แถบการสลับประเภทรายการ (เบิก / รับ) ขนาดใหญ่เด่นชัด */
+    .transaction-toggle-container {
+      background: #e9ecef;
+      border-radius: 14px;
+      padding: 6px;
+    }
+
+    .btn-toggle-part {
+      border: none;
+      border-radius: 10px;
+      padding: 14px 20px;
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: #555;
+      background: transparent;
+      transition: all 0.2s;
+      flex: 1;
+    }
+
+    .btn-toggle-part.active-withdraw {
+      background-color: var(--danger-color);
+      color: white !important;
+      box-shadow: 0 4px 10px rgba(220, 53, 69, 0.3);
+    }
+
+    .btn-toggle-part.active-replenish {
+      background-color: var(--success-color);
+      color: white !important;
+      box-shadow: 0 4px 10px rgba(25, 135, 84, 0.3);
+    }
+
+    /* เมนูด้านล่างสุดแบบแอปบนมือถือ หรือแท็บด้านบน */
+    .nav-tabs {
+      border-bottom: none;
+    }
+
+    .nav-tabs .nav-link {
+      color: #6c757d;
+      border: none;
+      padding: 12px 20px;
+      font-weight: 500;
+      border-radius: 10px;
+      margin-right: 8px;
+      background: #e9ecef;
+      transition: all 0.2s;
+    }
+
+    .nav-tabs .nav-link.active {
+      background-color: var(--primary-color);
+      color: white;
+      box-shadow: 0 4px 10px rgba(13, 110, 253, 0.2);
+    }
+
+    /* ไฟสีส้ม/แดงกะพริบสำหรับสต็อกวิกฤต */
+    @keyframes blink-warning {
+      0% { background-color: rgba(255, 193, 7, 0.15); }
+      50% { background-color: rgba(220, 53, 69, 0.3); }
+      100% { background-color: rgba(255, 193, 7, 0.15); }
+    }
+
+    .critical-low-row {
+      animation: blink-warning 2s infinite ease-in-out;
+      border-left: 5px solid var(--danger-color) !important;
+    }
+
+    .badge-critical {
+      background-color: var(--danger-color);
+      color: white;
+      animation: pulse-animation 1.5s infinite;
+    }
+
+    @keyframes pulse-animation {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+
+    /* โหลดเดอร์แอนิเมชัน */
+    .spinner-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.85);
+      z-index: 9999;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+    }
+
+    .form-floating > label {
+      padding-left: 12px;
+    }
+
+    /* สไตล์ช่องค้นหาและตาราง */
+    .search-input-group {
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+
+    .search-input-group input {
+      border: none;
+      padding: 14px;
+    }
+
+    .search-input-group input:focus {
+      box-shadow: none;
+    }
+
+    .search-input-group span {
+      background: white;
+      border: none;
+      color: #aaa;
+      padding-right: 18px;
+    }
+
+    /* หน้าจอแอนิเมชันการบันทึกสำเร็จ */
+    .success-checkmark {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- แถบประมวลผล (Loading Spinner) -->
+  <div id="loadingSpinner" class="spinner-overlay" style="display: none;">
+    <div class="spinner-border text-primary" role="status" style="width: 3.5rem; height: 3.5rem;"></div>
+    <span class="mt-3 fw-bold text-dark fs-5">กำลังติดต่อฐานข้อมูลโรงงาน...</span>
+  </div>
+
+  <!-- หัวข้อแอป (Header Bar) -->
+  <nav class="navbar navbar-dark bg-dark shadow-sm py-3 mb-4">
+    <div class="container">
+      <span class="navbar-brand mb-0 h1 fs-4 d-flex align-items-center">
+        <i class="fa-solid fa-gears text-warning me-2 fs-3"></i>
+        <span>ระบบควบคุมสต็อกอะไหล่สำรอง (Spare Part Control)</span>
+      </span>
+      <span class="badge bg-secondary py-2 px-3 rounded-pill d-none d-md-inline-block">
+        <i class="fa-solid fa-circle-dot text-success me-1"></i> แผนกซ่อมบำรุงโรงงาน
+      </span>
+    </div>
+  </nav>
+
+  <div class="container">
+    
+    <!-- ปุ่มสลับแท็บหลัก (Main Navigation) -->
+    <ul class="nav nav-tabs justify-content-center mb-4" id="mainTab" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="transaction-tab" data-bs-toggle="tab" data-bs-target="#transaction-pane" type="button" role="tab" aria-controls="transaction-pane" aria-selected="true">
+          <i class="fa-solid fa-right-left me-2"></i>เบิกและรับอะไหล่
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="inventory-tab" data-bs-toggle="tab" data-bs-target="#inventory-pane" type="button" role="tab" aria-controls="inventory-pane" aria-selected="false" onclick="loadInventoryTable()">
+          <i class="fa-solid fa-boxes-stacked me-2"></i>เช็คยอดคงเหลือ
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="dashboard-tab" data-bs-toggle="tab" data-bs-target="#dashboard-pane" type="button" role="tab" aria-controls="dashboard-pane" aria-selected="false" onclick="buildDashboard()">
+          <i class="fa-solid fa-chart-pie me-2"></i>แดชบอร์ดสรุปยอด
+        </button>
+      </li>
+    </ul>
+
+    <!-- เนื้อหาแต่ละแท็บ -->
+    <div class="tab-content" id="myTabContent">
+      
+      <!-- ==================== แท็บที่ 1: ฟอร์มเบิกและรับอะไหล่ ==================== -->
+      <div class="tab-pane fade show active" id="transaction-pane" role="tabpanel" aria-labelledby="transaction-tab" tabindex="0">
+        <div class="row justify-content-center">
+          <div class="col-lg-7 col-md-10">
+            <div class="card dashboard-card p-4">
+              <h3 class="text-center mb-4 fw-bold text-dark border-bottom pb-3">
+                <i class="fa-solid fa-clipboard-list text-primary me-2"></i>ทำรายการอะไหล่คลัง
+              </h3>
+
+              <!-- สวิตช์สลับใหญ่ยักษ์ เบิกอะไหล่ VS รับเข้าคลัง -->
+              <div class="transaction-toggle-container d-flex mb-4">
+                <button type="button" id="btnToggleWithdraw" class="btn-toggle-part active-withdraw" onclick="setTransactionType('เบิกจ่าย')">
+                  <i class="fa-solid fa-arrow-up-from-bracket me-2"></i>เบิกอะไหล่ (จ่ายออก)
+                </button>
+                <button type="button" id="btnToggleReplenish" class="btn-toggle-part" onclick="setTransactionType('รับเข้า')">
+                  <i class="fa-solid fa-arrow-down-to-bracket me-2"></i>รับเข้าคลัง (รับเพิ่ม)
+                </button>
+              </div>
+
+              <!-- ฟอร์มกรอกข้อมูลการทำรายการ -->
+              <form id="transactionForm" onsubmit="submitTransaction(event)">
+                <input type="hidden" id="txType" value="เบิกจ่าย">
+
+                <!-- 1. เลือกอะไหล่ (Dropdown ค้นหาได้) -->
+                <div class="mb-3">
+                  <label for="partSelector" class="form-label fw-bold"><i class="fa-solid fa-cube text-secondary me-1"></i> เลือกอะไหล่ที่ต้องการ:</label>
+                  <select class="form-select form-select-lg py-3" id="partSelector" required onchange="onPartSelected()">
+                    <option value="" disabled selected>-- กำลังโหลดอะไหล่จากระบบ... --</option>
+                  </select>
+                  <div class="form-text text-muted mt-2 d-flex justify-content-between">
+                    <span id="partStockDetail" class="fw-bold text-primary">สต็อกปัจจุบัน: -</span>
+                    <span id="partLocationDetail">ตำแหน่ง: -</span>
+                  </div>
+                </div>
+
+                <!-- 2. จำนวนที่เบิก/รับ -->
+                <div class="mb-3">
+                  <label for="txQuantity" class="form-label fw-bold"><i class="fa-solid fa-calculator text-secondary me-1"></i> จำนวน (Quantity):</label>
+                  <div class="input-group">
+                    <input type="number" class="form-control form-control-lg py-3" id="txQuantity" min="1" step="any" placeholder="กรอกจำนวนตัวเลข" required>
+                    <span class="input-group-text py-3 px-4 bg-light fw-bold text-secondary" id="partUnitLabel">หน่วย</span>
+                  </div>
+                </div>
+
+                <!-- 3. ชื่อช่างผู้ทำรายการ -->
+                <div class="mb-3">
+                  <label for="txTechnician" class="form-label fw-bold"><i class="fa-solid fa-user-gear text-secondary me-1"></i> ชื่อช่างเทคนิคหน้างาน:</label>
+                  <input type="text" class="form-control form-control-lg py-3" id="txTechnician" placeholder="ระบุชื่อ-นามสกุลช่าง" required>
+                </div>
+
+                <!-- 4. หมายเหตุเครื่องจักร / รายละเอียด -->
+                <div class="mb-4">
+                  <label for="txMachine" class="form-label fw-bold"><i class="fa-solid fa-industry text-secondary me-1"></i> รหัสเครื่องจักร / บรรทัดไลน์ผลิต / หมายเหตุ:</label>
+                  <input type="text" class="form-control form-control-lg py-3" id="txMachine" placeholder="เช่น Line 1 เครื่องแพ็คเบอร์ 3 / ซ่อมเร่งด่วน" required>
+                </div>
+
+                <!-- ปุ่มส่งฟอร์มใหญ่พิเศษสำหรับช่างสวมถุงมือ -->
+                <div class="d-grid gap-2">
+                  <button type="submit" id="btnSubmitForm" class="btn btn-danger btn-giant-mode">
+                    <i class="fa-solid fa-paper-plane me-2"></i>ยืนยันการเบิกอะไหล่
+                  </button>
+                </div>
+              </form>
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== แท็บที่ 2: เช็คยอดคงเหลือ (ตารางค้นหาได้) ==================== -->
+      <div class="tab-pane fade" id="inventory-pane" role="tabpanel" aria-labelledby="inventory-tab" tabindex="0">
+        <div class="card dashboard-card p-4">
+          <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+            <h3 class="fw-bold text-dark m-0">
+              <i class="fa-solid fa-warehouse text-success me-2"></i>เช็คยอดสต็อกและตำแหน่งจัดเก็บ
+            </h3>
+            
+            <!-- ตัวกรองหมวดหมู่ -->
+            <div class="d-flex gap-2">
+              <select id="categoryFilter" class="form-select" onchange="filterInventory()" style="max-width: 200px;">
+                <option value="">ทั้งหมดทุกหมวดหมู่</option>
+                <option value="เครื่องแพ็ค">เครื่องแพ็ค</option>
+                <option value="ปืนลมยิงตะปู">ปืนลมยิงตะปู</option>
+                <option value="อุปกรณ์ทั่วไป">อุปกรณ์ทั่วไป</option>
+              </select>
+              <button class="btn btn-light shadow-sm" onclick="loadInventoryTable(true)" title="รีเฟรชข้อมูล">
+                <i class="fa-solid fa-arrows-rotate text-primary"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- กล่องค้นหาความเร็วสูง (Instant Search) -->
+          <div class="input-group search-input-group mb-4">
+            <input type="text" class="form-control" id="inventorySearch" placeholder="พิมพ์คำเพื่อค้นหาอะไหล่ (เช่น รหัส, ชื่อ, ตำแหน่งจัดเก็บ)..." onkeyup="filterInventory()">
+            <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
+          </div>
+
+          <!-- ตารางแสดงรายการอะไหล่ -->
+          <div class="table-responsive" style="border-radius: 12px; max-height: 550px; overflow-y: auto;">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-dark sticky-top">
+                <tr>
+                  <th scope="col" style="min-width: 110px;">รหัสอะไหล่</th>
+                  <th scope="col" style="min-width: 180px;">ชื่ออะไหล่</th>
+                  <th scope="col">หมวดหมู่</th>
+                  <th scope="col" style="min-width: 110px;">ตำแหน่งจัดเก็บ</th>
+                  <th scope="col" class="text-end" style="min-width: 90px;">ยอดคงเหลือ</th>
+                  <th scope="col">หน่วย</th>
+                  <th scope="col" class="text-end text-warning" style="min-width: 80px;">Min</th>
+                  <th scope="col" class="text-end text-info" style="min-width: 80px;">Max</th>
+                  <th scope="col" class="text-center" style="min-width: 120px;">สเตตัส</th>
+                </tr>
+              </thead>
+              <tbody id="inventoryTableBody">
+                <tr>
+                  <td colspan="9" class="text-center py-5">
+                    <div class="spinner-border text-success me-2" role="status"></div>
+                    <span class="fs-5">กำลังโหลดสต็อกคงเหลือล่าสุด...</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== แท็บที่ 3: แดชบอร์ดสรุปผลกราฟิก (Dashboard) ==================== -->
+      <div class="tab-pane fade" id="dashboard-pane" role="tabpanel" aria-labelledby="dashboard-tab" tabindex="0">
+        
+        <!-- แถว bento บนสุด: ตัวสรุปย่อย (Cards summary) -->
+        <div class="row g-4 mb-4">
+          
+          <!-- บล็อก 1: รายการอะไหล่ทั้งหมด -->
+          <div class="col-lg-4 col-md-6">
+            <div class="card dashboard-card p-3 border-start border-5 border-primary h-100">
+              <div class="d-flex align-items-center justify-content-between">
+                <div>
+                  <h6 class="text-muted fw-bold mb-1">ยอดประเภทอะไหล่</h6>
+                  <h2 class="fw-bold mb-0 text-dark" id="statTotalItems">0</h2>
+                  <small class="text-secondary" id="statTotalPieces">รวมทั้งหมด 0 ชิ้นในคลัง</small>
+                </div>
+                <div class="bg-primary bg-opacity-10 p-3 rounded-circle text-primary">
+                  <i class="fa-solid fa-cubes-stacked fs-2"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- บล็อก 2: รายการอะไหล่ขาดแคลน ต่ำกว่าเกณฑ์วิกฤต -->
+          <div class="col-lg-4 col-md-6">
+            <div class="card dashboard-card p-3 border-start border-5 border-danger h-100" id="statLowStockCard">
+              <div class="d-flex align-items-center justify-content-between">
+                <div>
+                  <h6 class="text-danger fw-bold mb-1">ต้องสั่งซื้อด่วน! (ขาดสต็อก)</h6>
+                  <h2 class="fw-bold mb-0 text-danger" id="statLowStockCount">0</h2>
+                  <small class="text-muted">รายการที่ต่ำกว่าค่า Min Stock</small>
+                </div>
+                <div class="bg-danger bg-opacity-10 p-3 rounded-circle text-danger">
+                  <i class="fa-solid fa-triangle-exclamation fs-2"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- บล็อก 3: ประสิทธิภาพภาพรวมสต็อก -->
+          <div class="col-lg-4 col-md-12">
+            <div class="card dashboard-card p-3 border-start border-5 border-success h-100">
+              <div class="d-flex align-items-center justify-content-between">
+                <div>
+                  <h6 class="text-success fw-bold mb-1">สถานะคลังภาพรวม</h6>
+                  <h2 class="fw-bold mb-0 text-success" id="statHealthPct">100%</h2>
+                  <small class="text-muted" id="statHealthMsg">อะไหล่มีเพียงพอต่อกำลังผลิต</small>
+                </div>
+                <div class="bg-success bg-opacity-10 p-3 rounded-circle text-success">
+                  <i class="fa-solid fa-shield-halved fs-2"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- แถวกลาง: กราฟแยกประเภทและรายการยอดคงเหลือวิกฤต -->
+        <div class="row g-4">
+          
+          <!-- บล็อกซ้าย: แผนภูมิกราฟวงกลม -->
+          <div class="col-lg-6">
+            <div class="card dashboard-card p-4 h-100">
+              <h4 class="fw-bold text-dark mb-4">
+                <i class="fa-solid fa-chart-pie text-info me-2"></i>สัดส่วนหมวดหมู่คลังอะไหล่ (%)
+              </h4>
+              <div style="position: relative; height:280px; width:100%">
+                <canvas id="categoryChart"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- บล็อกขวา: ตารางชี้เป้าอะไหล่ที่ต้องซื้อด่วน -->
+          <div class="col-lg-6">
+            <div class="card dashboard-card p-4 h-100">
+              <h4 class="fw-bold text-danger mb-4 d-flex justify-content-between align-items-center">
+                <span><i class="fa-solid fa-list-check me-2"></i>รายการสั่งซื้อด่วนพิเศษ (Low Stock List)</span>
+                <span class="badge bg-danger rounded-pill fs-6" id="criticalBadge">0</span>
+              </h4>
+              <div class="table-responsive" style="max-height: 280px; overflow-y: auto;">
+                <table class="table table-sm table-striped align-middle">
+                  <thead>
+                    <tr class="table-secondary">
+                      <th>รหัส</th>
+                      <th>ชื่ออะไหล่</th>
+                      <th class="text-end">คงเหลือ</th>
+                      <th class="text-end">Min</th>
+                      <th>หน่วย</th>
+                    </tr>
+                  </thead>
+                  <tbody id="lowStockTableBody">
+                    <tr>
+                      <td colspan="5" class="text-center py-4 text-success">
+                        <i class="fa-solid fa-circle-check fs-4 me-2"></i> คลังปกติ ไม่มีรายการสต็อกวิกฤต
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- โต้ตอบและโมดอลยืนยันทำรายการสำเร็จ -->
+  <div class="modal fade" id="successModal" tabindex="-1" aria-labelledby="successModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content text-center p-4 border-0 rounded-4" style="box-shadow: 0 10px 30px rgba(0,0,0,0.15);">
+        <div class="modal-body">
+          <div class="text-success mb-3">
+            <i class="fa-solid fa-circle-check" style="font-size: 80px;"></i>
+          </div>
+          <h3 class="fw-bold text-success mb-2" id="successModalTitle">บันทึกรายการสำเร็จ!</h3>
+          <p class="text-secondary fs-5" id="successModalMessage">ข้อมูลสต็อกของคุณได้รับการปรับปรุงแล้วในคลัง</p>
+          
+          <!-- แจ้งเตือนหากต่ำกว่า min stock -->
+          <div id="lowStockAlertBanner" class="alert alert-warning mt-3 border-warning" style="display: none;">
+            <i class="fa-solid fa-triangle-exclamation text-warning me-2 fs-5"></i>
+            <span id="lowStockAlertText" class="fw-bold">ยอดอะไหล่ชิ้นนี้ต่ำกว่าจุดสั่งซื้อขั้นต่ำ!</span>
+            <div class="text-muted small mt-1">แจ้งเตือนผู้รับผิดชอบผ่านระบบและอีเมลสำเร็จแล้ว</div>
+          </div>
+
+          <button type="button" class="btn btn-dark w-100 py-3 mt-3 rounded-3 fw-bold" data-bs-dismiss="modal">ตกลง</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap 5 Bundle JS with Popper -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    // ตัวแปรเก็บข้อมูลสต็อกทั้งหมดแบบโกลบอล
+    let globalInventory = [];
+    let myCategoryChart = null;
+
+    // โหลดหน้าจอเริ่มต้น
+    document.addEventListener("DOMContentLoaded", function() {
+      // โหลดข้อมูลอะไหล่จากฐานข้อมูล
+      refreshData();
+    });
+
+    // แสดง/ซ่อน โหลดดิ้งสปินเนอร์
+    function toggleLoader(show) {
+      document.getElementById('loadingSpinner').style.display = show ? 'flex' : 'none';
+    }
+
+    // ฟังก์ชันรีเฟรชข้อมูลอะไหล่ทั้งหมด
+    function refreshData() {
+      toggleLoader(true);
+      google.script.run
+        .withSuccessHandler(function(data) {
+          globalInventory = data;
+          
+          // 1. นำข้อมูลไปใส่ Dropdown หน้ารับเบิก
+          populatePartSelector(data);
+          
+          // 2. นำข้อมูลไปใส่ในตารางคลังอะไหล่
+          buildInventoryTable(data);
+          
+          // 3. ปรับปรุงสเตตัสแดชบอร์ด
+          buildDashboard();
+          
+          toggleLoader(false);
+        })
+        .withFailureHandler(function(error) {
+          toggleLoader(false);
+          alert("ไม่สามารถดึงข้อมูลสต็อกได้: " + error.toString());
+        })
+        .getInventoryData();
+    }
+
+    // บรรจุอะไหล่ลงใน Dropdown ค้นหา
+    function populatePartSelector(items) {
+      const selector = document.getElementById("partSelector");
+      
+      if (!items || items.length === 0) {
+        selector.innerHTML = '<option value="" disabled selected>-- ไม่มีข้อมูลอะไหล่ในระบบ --</option>';
+        return;
+      }
+
+      let optionsHtml = '<option value="" disabled selected>-- กรุณาเลือกอะไหล่ในคลัง --</option>';
+      items.forEach(function(item) {
+        optionsHtml += `<option value="${item.id}">${item.id} | ${item.name} [คงเหลือ: ${item.quantity} ${item.unit}]</option>`;
+      });
+      selector.innerHTML = optionsHtml;
+      
+      // ล้างข้อมูลสต็อกอ้างอิงย่อย
+      document.getElementById("partStockDetail").innerText = "สต็อกปัจจุบัน: -";
+      document.getElementById("partLocationDetail").innerText = "ตำแหน่ง: -";
+      document.getElementById("partUnitLabel").innerText = "หน่วย";
+    }
+
+    // เมื่องทำการเลือกอะไหล่ใน Dropdown
+    function onPartSelected() {
+      const selector = document.getElementById("partSelector");
+      const partId = selector.value;
+      const part = globalInventory.find(item => item.id === partId);
+      
+      if (part) {
+        const stockDetailEl = document.getElementById("partStockDetail");
+        stockDetailEl.innerText = `สต็อกปัจจุบัน: ${part.quantity} ${part.unit}`;
+        
+        // ปรับปรุงสีสต็อกหากมีน้อย
+        if (part.quantity < part.minStock) {
+          stockDetailEl.className = "fw-bold text-danger";
+          stockDetailEl.innerHTML = `สต็อกปัจจุบัน: ${part.quantity} ${part.unit} ⚠️ (ต่ำกว่า Min: ${part.minStock})`;
+        } else {
+          stockDetailEl.className = "fw-bold text-success";
+        }
+
+        document.getElementById("partLocationDetail").innerText = `ตำแหน่งจัดเก็บ: ${part.location}`;
+        document.getElementById("partUnitLabel").innerText = part.unit;
+        
+        // เซ็ตจำนวนสูงสุดที่จะเบิกได้ถ้าเป็นการเบิก
+        const type = document.getElementById("txType").value;
+        if (type === 'เบิกจ่าย') {
+          document.getElementById("txQuantity").max = part.quantity;
+        } else {
+          document.getElementById("txQuantity").removeAttribute("max");
+        }
+      }
+    }
+
+    // ฟังก์ชันตั้งประเภทรายการ (เบิก/รับ)
+    function setTransactionType(type) {
+      document.getElementById("txType").value = type;
+      
+      const btnWithdraw = document.getElementById("btnToggleWithdraw");
+      const btnReplenish = document.getElementById("btnToggleReplenish");
+      const btnSubmit = document.getElementById("btnSubmitForm");
+      
+      if (type === 'เบิกจ่าย') {
+        btnWithdraw.classList.add("active-withdraw");
+        btnReplenish.classList.remove("active-replenish");
+        
+        btnSubmit.className = "btn btn-danger btn-giant-mode";
+        btnSubmit.innerHTML = '<i class="fa-solid fa-paper-plane me-2"></i>ยืนยันการเบิกอะไหล่';
+        
+        // ปรับสิทธิ์การเบิกสูงสุด
+        onPartSelected();
+      } else {
+        btnWithdraw.classList.remove("active-withdraw");
+        btnReplenish.classList.add("active-replenish");
+        
+        btnSubmit.className = "btn btn-success btn-giant-mode";
+        btnSubmit.innerHTML = '<i class="fa-solid fa-download me-2"></i>ยืนยันการรับเข้าคลัง';
+        
+        // ยกเลิกข้อจำกัดจำนวนสูงสุด
+        document.getElementById("txQuantity").removeAttribute("max");
+        onPartSelected();
+      }
+    }
+
+    // ยื่นเรื่องทำรายการอะไหล่ไปยัง Apps Script หลังบ้าน
+    function submitTransaction(event) {
+      event.preventDefault();
+      
+      const partId = document.getElementById("partSelector").value;
+      const type = document.getElementById("txType").value;
+      const quantity = Number(document.getElementById("txQuantity").value);
+      const technician = document.getElementById("txTechnician").value;
+      const machineNote = document.getElementById("txMachine").value;
+      
+      if (!partId) {
+        alert("โปรดระบุรายการอะไหล่");
+        return;
+      }
+      
+      const part = globalInventory.find(item => item.id === partId);
+      
+      // ทำการยืนยันก่อนบันทึกแบบ Destructive (ยืนยันสเตตัสการเบิกหรือการเติมเพื่อป้องกันช่างกดผิดพลาด)
+      const actionText = type === 'เบิกจ่าย' ? 'เบิกจ่ายออก' : 'เติมรับเข้าคลัง';
+      const confirmMsg = `โปรดยืนยันการทำรายการ:\n- อะไหล่: ${part.name} (${partId})\n- รายการ: ${actionText}\n- จำนวน: ${quantity} ${part.unit}\n- ช่างผู้ทำรายการ: ${technician}\n\nต้องการบันทึกข้อมูลหรือไม่?`;
+      
+      if (!confirm(confirmMsg)) return;
+
+      const dataPayload = {
+        partId: partId,
+        type: type,
+        quantity: quantity,
+        technician: technician,
+        machineNote: machineNote
+      };
+
+      toggleLoader(true);
+
+      google.script.run
+        .withSuccessHandler(function(result) {
+          toggleLoader(false);
+          
+          if (result.success) {
+            // แสดงป๊อปอัปยืนยันผลสัมฤทธิ์
+            document.getElementById("successModalTitle").innerText = type === 'เบิกจ่าย' ? "เบิกอะไหล่สำเร็จ!" : "รับเข้าคลังสำเร็จ!";
+            
+            let resultText = `ทำรายการ ${result.partName} จำนวน ${quantity} ${result.unit} เรียบร้อยแล้ว (ยอดในสต็อกปรับปรุงจาก ${result.oldQty} เป็น ${result.newQty})`;
+            document.getElementById("successModalMessage").innerText = resultText;
+            
+            // ตรวจสอบเงื่อนไขแจ้งเตือนต่ำกว่า Min Stock
+            const lowStockBanner = document.getElementById("lowStockAlertBanner");
+            if (result.isBelowMin) {
+              document.getElementById("lowStockAlertText").innerText = result.alertDetails || `อะไหล่ชิ้นนี้คงเหลือต่ำกว่าเกณฑ์ความปลอดภัย (${result.newQty} < Min: ${part.minStock})`;
+              lowStockBanner.style.display = "block";
+            } else {
+              lowStockBanner.style.display = "none";
+            }
+            
+            // เปิดโมดอลสำเร็จ
+            const successModal = new bootstrap.Modal(document.getElementById('successModal'));
+            successModal.show();
+            
+            // รีเซ็ตฟอร์มเบิก-รับ
+            document.getElementById("transactionForm").reset();
+            
+            // โหลดข้อมูลล่าสุด
+            refreshData();
+          }
+        })
+        .withFailureHandler(function(error) {
+          toggleLoader(false);
+          alert("เกิดข้อผิดพลาดในการประมวลผล: " + error.toString());
+        })
+        .saveNewTransaction(dataPayload);
+    }
+
+    // ประกอบตารางสต็อกในหน้าเว็บ
+    function buildInventoryTable(items) {
+      const tbody = document.getElementById("inventoryTableBody");
+      
+      if (!items || items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center py-4 text-muted">ไม่มีข้อมูลอะไหล่ในฐานข้อมูล</td></tr>';
+        return;
+      }
+
+      let tableHtml = "";
+      items.forEach(function(item) {
+        const isBelowMin = item.quantity < item.minStock;
+        const rowClass = isBelowMin ? "critical-low-row" : "";
+        
+        let statusBadge = "";
+        if (isBelowMin) {
+          statusBadge = `<span class="badge badge-critical py-2 px-3 rounded-pill fs-7"><i class="fa-solid fa-triangle-exclamation me-1"></i>สั่งซื้อด่วน</span>`;
+        } else if (item.quantity >= item.maxStock) {
+          statusBadge = `<span class="badge bg-success py-2 px-3 rounded-pill fs-7">สต็อกเต็ม (Max)</span>`;
+        } else {
+          statusBadge = `<span class="badge bg-light text-dark border py-2 px-3 rounded-pill fs-7">ปกติ</span>`;
+        }
+
+        tableHtml += `
+          <tr class="${rowClass}">
+            <td class="fw-bold text-secondary font-monospace">${item.id}</td>
+            <td class="fw-bold">${item.name}</td>
+            <td><span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-20 px-2.5 py-1 rounded-pill">${item.category}</span></td>
+            <td><i class="fa-solid fa-location-dot text-danger me-1"></i>${item.location}</td>
+            <td class="text-end fw-bold fs-5 ${isBelowMin ? 'text-danger' : 'text-dark'}">${item.quantity}</td>
+            <td>${item.unit}</td>
+            <td class="text-end text-muted font-monospace">${item.minStock}</td>
+            <td class="text-end text-muted font-monospace">${item.maxStock}</td>
+            <td class="text-center">${statusBadge}</td>
+          </tr>
+        `;
+      });
+
+      tbody.innerHTML = tableHtml;
+    }
+
+    // รีเฟรชตารางสต็อก (ใช้ดึงข้อมูลโดยตรงจากชีตผ่าน API เพื่อความสดใหม่)
+    function loadInventoryTable(forceRefresh = false) {
+      if (forceRefresh) {
+        refreshData();
+      } else {
+        buildInventoryTable(globalInventory);
+      }
+    }
+
+    // กรองและค้นหารายการในตารางสต็อกทันทีขณะพิมพ์
+    function filterInventory() {
+      const query = document.getElementById("inventorySearch").value.toLowerCase();
+      const categoryFilter = document.getElementById("categoryFilter").value;
+      
+      const filtered = globalInventory.filter(item => {
+        const matchesSearch = item.id.toLowerCase().includes(query) || 
+                              item.name.toLowerCase().includes(query) || 
+                              item.location.toLowerCase().includes(query);
+        const matchesCategory = categoryFilter === "" || item.category === categoryFilter;
+        return matchesSearch && matchesCategory;
+      });
+      
+      buildInventoryTable(filtered);
+    }
+
+    // สรุปข้อมูลวิเคราะห์แดชบอร์ด (Dashboard Analytics Panel)
+    function buildDashboard() {
+      if (!globalInventory || globalInventory.length === 0) return;
+
+      const totalItems = globalInventory.length;
+      let totalPieces = 0;
+      let lowStockCount = 0;
+      
+      // การจำแนกตามหมวดหมู่
+      const categories = {
+        'เครื่องแพ็ค': 0,
+        'ปืนลมยิงตะปู': 0,
+        'อุปกรณ์ทั่วไป': 0
+      };
+
+      const lowStockItems = [];
+
+      globalInventory.forEach(item => {
+        totalPieces += item.quantity;
+        
+        // เช็คการขาดแคลนต่ำกว่าเกณฑ์
+        if (item.quantity < item.minStock) {
+          lowStockCount++;
+          lowStockItems.push(item);
+        }
+
+        // นับจำนวนอะไหล่แต่ละหมวดหมู่
+        if (categories[item.category] !== undefined) {
+          categories[item.category]++;
+        } else {
+          categories[item.category] = 1;
+        }
+      });
+
+      // อัปเดตการ์ด bento แดชบอร์ด
+      document.getElementById("statTotalItems").innerText = totalItems;
+      document.getElementById("statTotalPieces").innerText = `รวมทั้งหมด ${totalPieces.toLocaleString()} ชิ้นในคลัง`;
+      
+      const lowStockCountEl = document.getElementById("statLowStockCount");
+      lowStockCountEl.innerText = lowStockCount;
+      
+      const statLowStockCard = document.getElementById("statLowStockCard");
+      if (lowStockCount > 0) {
+        statLowStockCard.classList.add("bg-danger", "bg-opacity-10");
+      } else {
+        statLowStockCard.classList.remove("bg-danger", "bg-opacity-10");
+      }
+
+      // คำนวณความเพียงพอบริหารคลัง (Health Rate)
+      const healthPct = Math.round(((totalItems - lowStockCount) / totalItems) * 100);
+      document.getElementById("statHealthPct").innerText = `${healthPct}%`;
+      
+      const healthMsgEl = document.getElementById("statHealthMsg");
+      if (healthPct === 100) {
+        healthMsgEl.innerText = "อะไหล่ครบ 100% สต็อกมีความมั่นคงสูงสุด";
+      } else if (healthPct >= 80) {
+        healthMsgEl.innerText = "สภาพความมั่นคงคลังปกติ มีส่วนน้อยที่ต้องซื้อเพิ่ม";
+      } else {
+        healthMsgEl.innerText = "⚠️ ความเสี่ยงสูง! มีอะไหล่ขาดแคลนมากโปรดเร่งทำเรื่องจัดซื้อ";
+      }
+
+      // ประกอบตารางสั่งซื้อด่วน
+      const lowStockTableBody = document.getElementById("lowStockTableBody");
+      document.getElementById("criticalBadge").innerText = lowStockCount;
+      
+      if (lowStockItems.length === 0) {
+        lowStockTableBody.innerHTML = `
+          <tr>
+            <td colspan="5" class="text-center py-4 text-success fw-bold">
+              <i class="fa-solid fa-circle-check fs-4 me-2"></i> คลังปกติ ไม่มีรายการสต็อกวิกฤต
+            </td>
+          </tr>
+        `;
+      } else {
+        let lowHtml = "";
+        lowStockItems.forEach(item => {
+          lowHtml += `
+            <tr class="table-danger">
+              <td class="font-monospace fw-bold">${item.id}</td>
+              <td class="fw-bold">${item.name}</td>
+              <td class="text-end fw-bold text-danger">${item.quantity}</td>
+              <td class="text-end text-muted font-monospace">${item.minStock}</td>
+              <td>${item.unit}</td>
+            </tr>
+          `;
+        });
+        lowStockTableBody.innerHTML = lowHtml;
+      }
+
+      // สร้างแผนภูมิวงกลม (Chart.js Chart Object Creation)
+      buildCategoryChart(categories);
+    }
+
+    // สร้างหรือปรับปรุงแผนภูมิวงกลมสรุปหมวดหมู่คลังอะไหล่
+    function buildCategoryChart(categoriesData) {
+      const ctx = document.getElementById('categoryChart').getContext('2d');
+      
+      if (myCategoryChart) {
+        myCategoryChart.destroy(); // ทำลายชิ้นกราฟเดิมก่อนวาดใหม่ป้องกันซ้อนทับ
+      }
+
+      const labels = Object.keys(categoriesData);
+      const dataValues = Object.values(categoriesData);
+
+      myCategoryChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: dataValues,
+            backgroundColor: [
+              '#0d6efd', // เครื่องแพ็ค - น้ำเงิน
+              '#dc3545', // ปืนลม - แดง
+              '#ffc107'  // อุปกรณ์ทั่วไป - เหลืองส้ม
+            ],
+            borderColor: '#ffffff',
+            borderWidth: 3,
+            hoverOffset: 10
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                font: {
+                  family: 'Sarabun',
+                  size: 13,
+                  weight: 'bold'
+                },
+                padding: 15
+              }
+            },
+            tooltip: {
+              titleFont: { family: 'Sarabun', size: 14, weight: 'bold' },
+              bodyFont: { family: 'Sarabun', size: 13 }
+            }
+          },
+          cutout: '65%'
+        }
+      });
+    }
+  </script>
+</body>
+</html>

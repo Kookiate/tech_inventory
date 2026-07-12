@@ -1,0 +1,128 @@
+import { SparePart } from '../types';
+
+export interface TelegramSettings {
+  enabled: boolean;
+  botToken: string;
+  chatId: string;
+}
+
+/**
+ * ดึงการตั้งค่า Telegram จาก localStorage
+ */
+export function getTelegramSettings(): TelegramSettings {
+  const enabled = localStorage.getItem('telegram_enabled') === 'true';
+  const botToken = localStorage.getItem('telegram_bot_token') || '';
+  const chatId = localStorage.getItem('telegram_chat_id') || '';
+  return { enabled, botToken, chatId };
+}
+
+/**
+ * บันทึกการตั้งค่า Telegram ลง localStorage
+ */
+export function saveTelegramSettings(enabled: boolean, botToken: string, chatId: string): void {
+  localStorage.setItem('telegram_enabled', enabled ? 'true' : 'false');
+  localStorage.setItem('telegram_bot_token', botToken.trim());
+  localStorage.setItem('telegram_chat_id', chatId.trim());
+}
+
+/**
+ * ส่งข้อความตรงไปยัง Telegram API
+ */
+export async function sendTelegramMessage(botToken: string, chatId: string, text: string): Promise<boolean> {
+  if (!botToken || !chatId) {
+    throw new Error('กรุณาระบุ Telegram Bot Token และ Chat ID ให้ครบถ้วน');
+  }
+
+  const url = `https://api.telegram.org/bot${botToken.trim()}/sendMessage`;
+  
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      chat_id: chatId.trim(),
+      text: text,
+      parse_mode: 'HTML',
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.description || 'เกิดข้อผิดพลาดในการส่งข้อความ Telegram');
+  }
+
+  return true;
+}
+
+/**
+ * ส่งแจ้งเตือนการเบิกจ่ายอะไหล่สำรอง และประเมินวิกฤตสต็อก
+ */
+export async function sendPartWithdrawAlert(
+  part: SparePart,
+  quantity: number,
+  technician: string,
+  machineNote: string,
+  newQty: number,
+  equipmentName?: string
+): Promise<boolean> {
+  const settings = getTelegramSettings();
+  if (!settings.enabled || !settings.botToken || !settings.chatId) {
+    return false; // ปิดใช้งานหรือไม่ครบถ้วน
+  }
+
+  // คำนวณมูลค่ารวม
+  const itemPrice = part.price || 0;
+  const totalCost = itemPrice * quantity;
+
+  // ตรวจเช็คสถานะสต็อกวิกฤต
+  const minStock = part.minStock || 0;
+  
+  let criticalStatusText = '';
+  let criticalEmoji = '';
+
+  if (newQty <= 0) {
+    criticalEmoji = '❌';
+    criticalStatusText = `<b>วิกฤตระดับสูงสุด! สินค้าหมดคลังทันที! (Out of Stock)</b>`;
+  } else if (newQty < minStock) {
+    criticalEmoji = '🚨';
+    criticalStatusText = `<b>วิกฤตระดับกลาง! ต่ำกว่าเกณฑ์ความปลอดภัย Min Stock (เกณฑ์ขั้นต่ำ: ${minStock} ${part.unit})</b>`;
+  } else if (newQty === minStock) {
+    criticalEmoji = '⚠️';
+    criticalStatusText = `<b>เตือนภัย! เท่าเกณฑ์ความปลอดภัยขั้นต่ำพอดี (Min Stock: ${minStock} ${part.unit})</b>`;
+  } else {
+    criticalEmoji = '✅';
+    criticalStatusText = `ระดับปกติ (ปลอดภัย)`;
+  }
+
+  // รายละเอียดเครื่องจักร/งานซ่อม
+  const usageDetail = equipmentName 
+    ? `🛠️ <b>เครื่องจักร:</b> ${equipmentName}\n🔧 <b>อาการและการแก้ไข:</b> ${machineNote}`
+    : `📝 <b>หมายเหตุ:</b> ${machineNote}`;
+
+  // จัดรูปแบบข้อความแจ้งเตือนความยาวกำลังดีและอ่านง่ายบนหน้าจอมือถือของช่าง
+  const messageText = `
+${criticalEmoji} <b>แจ้งเตือนการเบิกอะไหล่สำรอง</b>
+━━━━━━━━━━━━━━━━━━━━━
+📦 <b>อะไหล่:</b> <code>[${part.id}]</code> ${part.name}
+📁 <b>หมวดหมู่:</b> ${part.category}
+🔢 <b>จำนวนที่เบิก:</b> ${quantity} ${part.unit}
+💰 <b>ราคาต่อหน่วย:</b> ฿${itemPrice.toLocaleString()}
+💸 <b>รวมมูลค่าการเบิก:</b> ฿${totalCost.toLocaleString()}
+👤 <b>ช่างผู้ทำรายการ:</b> ${technician}
+━━━━━━━━━━━━━━━━━━━━━
+<b>[ รายละเอียดการนำไปใช้งาน/งานซ่อม ]</b>
+${usageDetail}
+━━━━━━━━━━━━━━━━━━━━━
+📊 <b>สถานะสต็อกคงเหลือล่าสุด:</b>
+📦 <b>คงเหลือจริงในระบบ:</b> ${newQty} ${part.unit} (ขั้นต่ำควรมี: ${minStock} ${part.unit})
+📢 <b>ประเมินความวิกฤต:</b> ${criticalStatusText}
+  `.trim();
+
+  try {
+    return await sendTelegramMessage(settings.botToken, settings.chatId, messageText);
+  } catch (error) {
+    console.error('Error sending Telegram withdrawal alert:', error);
+    return false;
+  }
+}
