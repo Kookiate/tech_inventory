@@ -12,10 +12,11 @@ import {
   fetchMaintenanceLogsData,
   addNewEquipment,
   addNewMaintenanceLog,
-  updateSparePart
+  updateSparePart,
+  updateEquipment
 } from './utils/sheets';
 import { SparePart, Transaction, Equipment, MaintenanceLog } from './types';
-import { sendPartWithdrawAlert, getTelegramSettings, saveTelegramSettings, sendTelegramMessage } from './utils/telegram';
+import { sendPartWithdrawAlert, sendPartRestockAlert, getTelegramSettings, saveTelegramSettings, sendTelegramMessage } from './utils/telegram';
 
 // คอมโพเนนต์โมดูล
 import LoginView from './components/LoginView';
@@ -359,9 +360,17 @@ export default function App() {
           // ตรวจเช็คต่ำกว่าค่าความปลอดภัย Min Stock
           const isBelowMin = result.newQty < result.updatedPart.minStock;
 
-          // ส่งแจ้งเตือนผ่าน Telegram หากเป็นการเบิกจ่ายออก
+          // ส่งแจ้งเตือนผ่าน Telegram หากเป็นการเบิกจ่ายออก หรือรับเข้าคลัง
           if (data.type === 'เบิกจ่าย') {
             sendPartWithdrawAlert(
+              result.updatedPart,
+              data.quantity,
+              data.technician,
+              data.machineNote,
+              result.newQty
+            ).catch(err => console.error('Telegram alert error:', err));
+          } else if (data.type === 'รับเข้า') {
+            sendPartRestockAlert(
               result.updatedPart,
               data.quantity,
               data.technician,
@@ -496,6 +505,40 @@ export default function App() {
         title: 'ไม่สามารถเพิ่มเครื่องจักรใหม่ได้',
         desc: error.message || 'เกิดข้อผิดพลาดในการติดต่อ Google Sheets'
       });
+    } finally {
+      setIsSubmittingEq(false);
+    }
+  };
+
+  // 7.6.5 แก้ไขข้อมูลเครื่องจักร/อุปกรณ์
+  const handleUpdateEquipment = async (eqData: {
+    id: string;
+    name: string;
+    location: string;
+    purchasePrice: number;
+    maxRepairBudget: number;
+    purchaseDate: string;
+  }) => {
+    if (!token || !spreadsheetId) return;
+    setIsSubmittingEq(true);
+    try {
+      const result = await updateEquipment(token, spreadsheetId, eqData);
+      if (result.success) {
+        setEquipments(prev => prev.map(eq => eq.id === result.updatedEquipment.id ? result.updatedEquipment : eq));
+        setAlertMessage({
+          type: 'success',
+          title: 'แก้ไขข้อมูลเครื่องจักรสำเร็จ!',
+          desc: `แก้ไขรหัสเครื่องจักร "${result.updatedEquipment.id}" (${result.updatedEquipment.name}) เรียบร้อยแล้ว`,
+        });
+      }
+    } catch (error: any) {
+      console.error('Update equipment error:', error);
+      setAlertMessage({
+        type: 'error',
+        title: 'ไม่สามารถแก้ไขข้อมูลเครื่องจักรได้',
+        desc: error.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูลสเปรดชีต'
+      });
+      throw error;
     } finally {
       setIsSubmittingEq(false);
     }
@@ -795,6 +838,7 @@ export default function App() {
               <EquipmentTab 
                 equipments={equipments}
                 onAddEquipment={handleAddNewEquipment}
+                onUpdateEquipment={handleUpdateEquipment}
                 isSubmitting={isSubmittingEq}
               />
             )}

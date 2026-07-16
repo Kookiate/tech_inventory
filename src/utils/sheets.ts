@@ -912,5 +912,95 @@ export async function updateSparePart(
   }
 }
 
+/**
+ * แก้ไข/ปรับปรุงข้อมูลเครื่องจักรเดิมในชีต Equipment
+ */
+export async function updateEquipment(
+  accessToken: string,
+  spreadsheetId: string,
+  eq: {
+    id: string;
+    name: string;
+    location: string;
+    purchasePrice: number;
+    maxRepairBudget: number;
+    purchaseDate: string;
+  }
+): Promise<{ success: boolean; updatedEquipment: Equipment }> {
+  try {
+    // 1. ดึงข้อมูล Equipment ทั้งหมดเพื่อหาตำแหน่งแถว
+    const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Equipment!A1:F500`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData?.error?.message || 'ไม่สามารถดึงข้อมูลเครื่องจักรเพื่อแก้ไขได้');
+    }
+
+    const sheetData = await response.json();
+    const rows = sheetData.values || [];
+    
+    let rowIndex = -1;
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i][0] && String(rows[i][0]).trim().toLowerCase() === eq.id.trim().toLowerCase()) {
+        rowIndex = i + 1; // Google sheets is 1-indexed
+        break;
+      }
+    }
+
+    if (rowIndex === -1) {
+      throw new Error(`ไม่พบรหัสเครื่องจักร: ${eq.id} ในระบบ`);
+    }
+
+    // เตรียมค่าที่จะบันทึก (คอลัมน์ A ถึง F)
+    const rowValue = [
+      eq.id.trim().toUpperCase(),
+      eq.name.trim(),
+      eq.location.trim(),
+      eq.purchasePrice,
+      eq.maxRepairBudget,
+      eq.purchaseDate.trim()
+    ];
+
+    // 2. ปรับปรุงข้อมูลใน Equipment แถวเดิม ช่วง A{rowIndex}:F{rowIndex}
+    const updateResponse = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Equipment!A${rowIndex}:F${rowIndex}?valueInputOption=USER_ENTERED`,
+      {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          values: [rowValue],
+        }),
+      }
+    );
+
+    if (!updateResponse.ok) {
+      const errData = await updateResponse.json().catch(() => ({}));
+      throw new Error(errData?.error?.message || 'ไม่สามารถบันทึกการแก้ไขข้อมูลเครื่องจักรลงสเปรดชีตได้');
+    }
+
+    const updatedEquipment: Equipment = {
+      id: eq.id.trim().toUpperCase(),
+      name: eq.name.trim(),
+      location: eq.location.trim(),
+      purchasePrice: eq.purchasePrice,
+      maxRepairBudget: eq.maxRepairBudget,
+      purchaseDate: eq.purchaseDate.trim(),
+    };
+
+    return {
+      success: true,
+      updatedEquipment
+    };
+  } catch (error: any) {
+    console.error('updateEquipment error:', error);
+    throw error;
+  }
+}
+
 
 

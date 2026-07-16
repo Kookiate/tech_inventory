@@ -12,10 +12,18 @@ interface EquipmentTabProps {
     maxRepairBudget: number;
     purchaseDate: string;
   }) => Promise<void>;
+  onUpdateEquipment?: (eq: {
+    id: string;
+    name: string;
+    location: string;
+    purchasePrice: number;
+    maxRepairBudget: number;
+    purchaseDate: string;
+  }) => Promise<void>;
   isSubmitting: boolean;
 }
 
-export default function EquipmentTab({ equipments, onAddEquipment, isSubmitting }: EquipmentTabProps) {
+export default function EquipmentTab({ equipments, onAddEquipment, onUpdateEquipment, isSubmitting }: EquipmentTabProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -28,6 +36,56 @@ export default function EquipmentTab({ equipments, onAddEquipment, isSubmitting 
   const [purchaseDate, setPurchaseDate] = useState('');
 
   const [formError, setFormError] = useState('');
+
+  // Inline edit states
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editLocation, setEditLocation] = useState('');
+  const [editPurchasePrice, setEditPurchasePrice] = useState<number>(0);
+  const [editMaxRepairBudget, setEditMaxRepairBudget] = useState<number>(0);
+  const [editPurchaseDate, setEditPurchaseDate] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editError, setEditError] = useState('');
+
+  const startEdit = (eq: Equipment) => {
+    setEditingId(eq.id);
+    setEditName(eq.name);
+    setEditLocation(eq.location);
+    setEditPurchasePrice(eq.purchasePrice);
+    setEditMaxRepairBudget(eq.maxRepairBudget);
+    setEditPurchaseDate(eq.purchaseDate);
+    setEditError('');
+  };
+
+  const handleSaveEdit = async (eqId: string) => {
+    setEditError('');
+    if (!editName.trim() || !editLocation.trim() || !editPurchaseDate) {
+      setEditError('กรุณากรอกข้อมูลให้ครบถ้วน');
+      return;
+    }
+    if (editPurchasePrice < 0 || editMaxRepairBudget < 0) {
+      setEditError('ราคาซื้อและงบซ่อมต้องไม่ติดลบ');
+      return;
+    }
+    setIsSavingEdit(true);
+    try {
+      if (onUpdateEquipment) {
+        await onUpdateEquipment({
+          id: eqId,
+          name: editName.trim(),
+          location: editLocation.trim(),
+          purchasePrice: editPurchasePrice,
+          maxRepairBudget: editMaxRepairBudget || Math.round(editPurchasePrice * 0.4),
+          purchaseDate: editPurchaseDate.trim()
+        });
+      }
+      setEditingId(null);
+    } catch (err: any) {
+      setEditError(err.message || 'เกิดข้อผิดพลาดในการแก้ไขข้อมูล');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -248,32 +306,122 @@ export default function EquipmentTab({ equipments, onAddEquipment, isSubmitting 
                 <th className="py-3 px-4 text-right font-bold">ราคาซื้อ</th>
                 <th className="py-3 px-4 text-right font-bold">งบซ่อมวิกฤตสะสม</th>
                 <th className="py-3 px-4 font-bold">เริ่มใช้งาน</th>
+                <th className="py-3 px-4 text-center font-bold">การจัดการ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 bg-white">
               {filteredEquipment.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400 font-sans">
+                  <td colSpan={7} className="py-12 text-center text-slate-400 font-sans">
                     ไม่พบข้อมูลเครื่องจักรหรือรหัสสเปกเครื่องในระบบคลัง
                   </td>
                 </tr>
               ) : (
-                filteredEquipment.map(eq => (
-                  <tr key={eq.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="py-3.5 px-4 font-mono font-bold text-blue-600">{eq.id}</td>
-                    <td className="py-3.5 px-4 font-semibold text-slate-800">{eq.name}</td>
-                    <td className="py-3.5 px-4 text-slate-600 font-sans">{eq.location}</td>
-                    <td className="py-3.5 px-4 text-right font-mono font-semibold text-slate-900">
-                      ฿{eq.purchasePrice.toLocaleString()}
-                    </td>
-                    <td className="py-3.5 px-4 text-right font-mono font-semibold text-rose-600">
-                      ฿{eq.maxRepairBudget.toLocaleString()}
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-500 font-mono">
-                      {eq.purchaseDate}
-                    </td>
-                  </tr>
-                ))
+                filteredEquipment.map(eq => {
+                  const isEditing = editingId === eq.id;
+                  if (isEditing) {
+                    return (
+                      <tr key={eq.id} className="bg-blue-50/30 transition-colors">
+                        <td className="py-3 px-4 font-mono font-bold text-blue-600 align-middle">
+                          {eq.id}
+                          {editError && (
+                            <div className="text-[10px] text-rose-600 font-sans mt-1 block">
+                              {editError}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-2 px-2 align-middle">
+                          <input
+                            type="text"
+                            value={editName}
+                            onChange={e => setEditName(e.target.value)}
+                            className="w-full border border-slate-300 rounded-lg px-2 py-1 text-xs focus:ring-1 focus:ring-blue-300 outline-none font-sans"
+                            placeholder="ชื่อเครื่องจักร"
+                          />
+                        </td>
+                        <td className="py-2 px-2 align-middle">
+                          <input
+                            type="text"
+                            value={editLocation}
+                            onChange={e => setEditLocation(e.target.value)}
+                            className="w-full border border-slate-300 rounded-lg px-2 py-1 text-xs focus:ring-1 focus:ring-blue-300 outline-none font-sans"
+                            placeholder="ไลน์ผลิต"
+                          />
+                        </td>
+                        <td className="py-2 px-2 align-middle">
+                          <input
+                            type="number"
+                            value={editPurchasePrice || ''}
+                            onChange={e => setEditPurchasePrice(Number(e.target.value))}
+                            className="w-full text-right border border-slate-300 rounded-lg px-2 py-1 text-xs focus:ring-1 focus:ring-blue-300 outline-none font-mono"
+                            placeholder="ราคาซื้อ"
+                          />
+                        </td>
+                        <td className="py-2 px-2 align-middle">
+                          <input
+                            type="number"
+                            value={editMaxRepairBudget || ''}
+                            onChange={e => setEditMaxRepairBudget(Number(e.target.value))}
+                            className="w-full text-right border border-slate-300 rounded-lg px-2 py-1 text-xs focus:ring-1 focus:ring-blue-300 outline-none font-mono"
+                            placeholder="งบซ่อมสูงสุด"
+                          />
+                        </td>
+                        <td className="py-2 px-2 align-middle">
+                          <input
+                            type="text"
+                            value={editPurchaseDate}
+                            onChange={e => setEditPurchaseDate(e.target.value)}
+                            className="w-full border border-slate-300 rounded-lg px-2 py-1 text-xs focus:ring-1 focus:ring-blue-300 outline-none font-mono"
+                            placeholder="เริ่มใช้งาน"
+                          />
+                        </td>
+                        <td className="py-2 px-4 text-center align-middle whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => handleSaveEdit(eq.id)}
+                              disabled={isSavingEdit}
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold shadow-sm transition-all disabled:opacity-50"
+                            >
+                              {isSavingEdit ? 'บันทึก...' : 'บันทึก'}
+                            </button>
+                            <button
+                              onClick={() => setEditingId(null)}
+                              className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-[11px] font-bold transition-all"
+                            >
+                              ยกเลิก
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  return (
+                    <tr key={eq.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="py-3.5 px-4 font-mono font-bold text-blue-600 align-middle">{eq.id}</td>
+                      <td className="py-3.5 px-4 font-semibold text-slate-800 align-middle">{eq.name}</td>
+                      <td className="py-3.5 px-4 text-slate-600 font-sans align-middle">{eq.location}</td>
+                      <td className="py-3.5 px-4 text-right font-mono font-semibold text-slate-900 align-middle">
+                        ฿{eq.purchasePrice.toLocaleString()}
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono font-semibold text-rose-600 align-middle">
+                        ฿{eq.maxRepairBudget.toLocaleString()}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-500 font-mono align-middle">
+                        {eq.purchaseDate}
+                      </td>
+                      <td className="py-3.5 px-4 text-center align-middle whitespace-nowrap">
+                        <button
+                          onClick={() => startEdit(eq)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 text-slate-600 rounded-lg text-[11px] font-semibold border border-slate-200 hover:border-blue-200 transition-all cursor-pointer"
+                        >
+                          <PenTool className="h-3.5 w-3.5" />
+                          แก้ไข
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

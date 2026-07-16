@@ -126,3 +126,61 @@ ${usageDetail}
     return false;
   }
 }
+
+/**
+ * ส่งแจ้งเตือนการรับเข้า/เติมสต็อกอะไหล่สำรอง
+ */
+export async function sendPartRestockAlert(
+  part: SparePart,
+  quantity: number,
+  technician: string,
+  machineNote: string,
+  newQty: number
+): Promise<boolean> {
+  const settings = getTelegramSettings();
+  if (!settings.enabled || !settings.botToken || !settings.chatId) {
+    return false; // ปิดใช้งานหรือไม่ครบถ้วน
+  }
+
+  // คำนวณมูลค่ารวมที่รับเข้า
+  const itemPrice = part.price || 0;
+  const totalCost = itemPrice * quantity;
+
+  // เกณฑ์ความปลอดภัย
+  const minStock = part.minStock || 0;
+  const maxStock = part.maxStock || 0;
+
+  let stockStatusText = '';
+  if (newQty > maxStock && maxStock > 0) {
+    stockStatusText = `📈 <b>สต็อกล้นเกณฑ์สูงสุด Max Stock (เกณฑ์สูงสุด: ${maxStock} ${part.unit})</b>`;
+  } else if (newQty >= minStock) {
+    stockStatusText = `🟢 <b>สต็อกกลับเข้าสู่สภาวะปกติ (พ้นขีดวิกฤตความเสี่ยง)</b>`;
+  } else {
+    stockStatusText = `⚠️ <b>แม้จะเติมสต็อกแล้ว แต่คงเหลือก็ยังต่ำกว่าเกณฑ์ Min Stock (${newQty} < ${minStock})</b>`;
+  }
+
+  // จัดรูปแบบข้อความแจ้งเตือนรับเข้า
+  const messageText = `
+🟢 <b>แจ้งเตือนการเติมสต็อกอะไหล่ (Restock)</b>
+━━━━━━━━━━━━━━━━━━━━━
+📦 <b>อะไหล่:</b> <code>[${part.id}]</code> ${part.name}
+📁 <b>หมวดหมู่:</b> ${part.category}
+📥 <b>จำนวนที่เติมเข้า:</b> ${quantity} ${part.unit}
+💰 <b>ราคาต่อหน่วย:</b> ฿${itemPrice.toLocaleString()}
+💸 <b>รวมมูลค่าเติมเข้า:</b> ฿${totalCost.toLocaleString()}
+👤 <b>ผู้ทำรายการรับเข้า:</b> ${technician}
+━━━━━━━━━━━━━━━━━━━━━
+📝 <b>หมายเหตุการรับเข้า:</b> ${machineNote || 'เติมอะไหล่สำรองเข้าคลังเพื่อความพร้อมผลิต'}
+━━━━━━━━━━━━━━━━━━━━━
+📊 <b>สถานะสต็อกคงเหลือล่าสุด:</b>
+📦 <b>คงเหลือจริงในระบบ:</b> ${newQty} ${part.unit} (ขั้นต่ำควรมี: ${minStock} ${part.unit})
+📢 <b>ประเมินความปลอดภัย:</b> ${stockStatusText}
+  `.trim();
+
+  try {
+    return await sendTelegramMessage(settings.botToken, settings.chatId, messageText);
+  } catch (error) {
+    console.error('Error sending Telegram restock alert:', error);
+    return false;
+  }
+}

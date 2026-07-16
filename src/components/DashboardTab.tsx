@@ -75,14 +75,35 @@ export default function DashboardTab({
     value: categorySummary[key]
   })).filter(item => item.value > 0);
 
-  const PIE_COLORS = {
+  const PIE_COLORS: { [key: string]: string } = {
     'เครื่องแพ็ค': '#2563eb', // Blue-600
     'ปืนลมยิงตะปู': '#dc2626', // Red-600
     'อุปกรณ์ทั่วไป': '#d97706' // Amber-600
   };
 
-  const getPieCellColor = (name: string) => {
-    return (PIE_COLORS as any)[name] || '#64748b';
+  // หลากหลายสีสันที่สวยงาม สำหรับสัดส่วนของหมวดหมู่และรายการที่เพิ่มใหม่
+  const DIVERSE_COLORS = [
+    '#2563eb', // Blue-600
+    '#dc2626', // Red-600
+    '#d97706', // Amber-600
+    '#10b981', // Emerald-500
+    '#8b5cf6', // Violet-500
+    '#ec4899', // Pink-500
+    '#06b6d4', // Cyan-500
+    '#f43f5e', // Rose-500
+    '#a855f7', // Purple-500
+    '#14b8a6', // Teal-500
+    '#f97316', // Orange-500
+    '#6366f1', // Indigo-500
+    '#d946ef', // Fuchsia-500
+    '#84cc16'  // Lime-500
+  ];
+
+  const getPieCellColor = (name: string, index: number) => {
+    if (PIE_COLORS[name]) {
+      return PIE_COLORS[name];
+    }
+    return DIVERSE_COLORS[index % DIVERSE_COLORS.length];
   };
 
   // ==================== 2. คำนวณสรุปข้อมูลระบบซ่อมและเครื่องจักร ====================
@@ -350,7 +371,7 @@ export default function DashboardTab({
                     dataKey="value"
                   >
                     {pieChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={getPieCellColor(entry.name)} />
+                      <Cell key={`cell-${index}`} fill={getPieCellColor(entry.name, index)} />
                     ))}
                   </Pie>
                   <Tooltip 
