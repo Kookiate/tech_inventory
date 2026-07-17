@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { SparePart } from '../types';
-import { Search, AlertTriangle, CheckCircle, ArrowRightLeft, RefreshCw, Layers, Plus, X, FolderPlus, HelpCircle, Edit, QrCode, Printer } from 'lucide-react';
+import { Search, AlertTriangle, CheckCircle, ArrowRightLeft, RefreshCw, Layers, Plus, X, FolderPlus, HelpCircle, Edit, QrCode, Printer, ChevronDown } from 'lucide-react';
 import { getEmbeddableImageUrl, isGoogleDriveUrl } from '../utils/image';
 import QRCode from 'qrcode';
 
@@ -38,6 +38,7 @@ interface InventoryTabProps {
 export default function InventoryTab({ parts, onQuickAction, onRefresh, isRefreshing, onAddPart, onUpdatePart }: InventoryTabProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ทั้งหมด');
+  const [isCatDropdownOpen, setIsCatDropdownOpen] = useState(false);
 
   // Status for adding new parts form
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -226,6 +227,31 @@ export default function InventoryTab({ parts, onQuickAction, onRefresh, isRefres
     ])
   );
 
+  // นับจำนวนรายการอะไหล่ในแต่ละหมวดหมู่
+  const categoryCounts = React.useMemo(() => {
+    const counts: { [key: string]: number } = {};
+    parts.forEach(p => {
+      const cat = p.category ? p.category.trim() : '';
+      if (cat) {
+        counts[cat] = (counts[cat] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [parts]);
+
+  // จัดกลุ่มหมวดหมู่:
+  // - 'ทั้งหมด' และหมวดหมู่ที่มีจำนวนอะไหล่ตั้งแต่ 2 รายการขึ้นไป (รหัสอะไหล่เยอะ) จะแสดงเป็นปุ่ม
+  // - หมวดหมู่ที่มีจำนวนอะไหล่น้อยกว่า 2 รายการ (รหัสน้อย) จะแสดงใน Dropdown list
+  const THRESHOLD = 2;
+
+  const buttonCategories = React.useMemo(() => {
+    return ['ทั้งหมด', ...systemCategories.filter(cat => (categoryCounts[cat] || 0) >= THRESHOLD)];
+  }, [systemCategories, categoryCounts]);
+
+  const dropdownCategories = React.useMemo(() => {
+    return systemCategories.filter(cat => (categoryCounts[cat] || 0) < THRESHOLD);
+  }, [systemCategories, categoryCounts]);
+
   // ฟิลเตอร์คัดกรองข้อมูล
   const filteredParts = parts.filter(part => {
     const matchesSearch = 
@@ -303,8 +329,9 @@ export default function InventoryTab({ parts, onQuickAction, onRefresh, isRefres
             <Search className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
           </div>
 
-          <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0">
-            {categories.map((cat) => (
+          <div className="flex flex-wrap items-center gap-2 pb-1 md:pb-0">
+            {/* แสดงปุ่มสำหรับหมวดหมู่ที่มีอะไหล่เยอะ */}
+            {buttonCategories.map((cat) => (
               <button
                 key={cat}
                 type="button"
@@ -315,9 +342,64 @@ export default function InventoryTab({ parts, onQuickAction, onRefresh, isRefres
                     : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
                 }`}
               >
-                {cat}
+                {cat} {(cat !== 'ทั้งหมด' && categoryCounts[cat] !== undefined) && `(${categoryCounts[cat]})`}
               </button>
             ))}
+
+            {/* แสดง Dropdown list สำหรับหมวดหมู่ที่มีอะไหล่น้อย */}
+            {dropdownCategories.length > 0 && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsCatDropdownOpen(!isCatDropdownOpen)}
+                  className={`px-4 py-3 text-xs font-bold rounded-xl border transition-all cursor-pointer whitespace-nowrap font-sans flex items-center gap-1.5 ${
+                    dropdownCategories.includes(selectedCategory)
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-sm shadow-blue-600/10'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
+                  }`}
+                >
+                  <span>
+                    {dropdownCategories.includes(selectedCategory) 
+                      ? `${selectedCategory} (${categoryCounts[selectedCategory] || 0})` 
+                      : 'หมวดหมู่อื่นๆ'}
+                  </span>
+                  <ChevronDown className="h-3.5 w-3.5 stroke-[2.5]" />
+                </button>
+
+                {isCatDropdownOpen && (
+                  <>
+                    {/* Backdrop to close click */}
+                    <div 
+                      className="fixed inset-0 z-10" 
+                      onClick={() => setIsCatDropdownOpen(false)} 
+                    />
+                    <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-lg py-1.5 z-20 animate-fade-in font-sans">
+                      <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        หมวดหมู่รหัสน้อย (มีชิ้นส่วน &lt; {THRESHOLD} รายการ)
+                      </div>
+                      {dropdownCategories.map((cat) => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => {
+                            setSelectedCategory(cat);
+                            setIsCatDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-4 py-2 text-xs font-medium hover:bg-slate-50 transition-colors flex justify-between items-center cursor-pointer ${
+                            selectedCategory === cat ? 'text-blue-600 font-bold bg-blue-50/50' : 'text-slate-700'
+                          }`}
+                        >
+                          <span>{cat}</span>
+                          <span className="font-mono text-[10px] text-slate-400">
+                            {categoryCounts[cat] || 0} ชิ้น
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
