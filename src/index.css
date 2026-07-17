@@ -39,3 +39,65 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* Print styles for 30mm x 60mm thermal sticker */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  
+  /* Hide everything on the page by default */
+  body * {
+    visibility: hidden;
+  }
+  
+  /* Make only the print-section and its children visible */
+  #print-section, #print-section * {
+    visibility: visible;
+  }
+  
+  #print-section {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 60mm;
+    height: 30mm;
+    padding: 2mm;
+    box-sizing: border-box;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    background: white !important;
+    color: black !important;
+    border: none !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+  }
+  
+  @page {
+    size: 60mm 30mm;
+    margin: 0;
+  }
+}
+
+/* Keyframes for QR scanner laser animation */
+@keyframes scanner-laser {
+  0% {
+    top: 5%;
+    opacity: 0.8;
+  }
+  50% {
+    top: 95%;
+    opacity: 1;
+  }
+  100% {
+    top: 5%;
+    opacity: 0.8;
+  }
+}
+
+

@@ -611,7 +611,7 @@ export async function fetchEquipmentData(accessToken: string, spreadsheetId: str
  */
 export async function fetchMaintenanceLogsData(accessToken: string, spreadsheetId: string): Promise<MaintenanceLog[]> {
   try {
-    const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/MaintenanceLogs!A2:J1000`, {
+    const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/MaintenanceLogs!A2:K1000`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
@@ -632,6 +632,7 @@ export async function fetchMaintenanceLogsData(accessToken: string, spreadsheetI
         otherCost: row[7] ? Number(row[7]) : 0,
         totalCost: row[8] ? Number(row[8]) : 0,
         technician: row[9] ? String(row[9]) : 'ไม่ระบุ',
+        imageUrl: row[10] ? String(row[10]) : '',
       };
     }).reverse(); // ล่าสุดขึ้นก่อน
   } catch (error) {
@@ -733,6 +734,7 @@ export async function addNewMaintenanceLog(
     otherCost: number;
     totalCost: number;
     technician: string;
+    imageUrl?: string;
   }
 ): Promise<{ success: boolean; newLog: MaintenanceLog; updatedPart?: SparePart }> {
   try {
@@ -764,11 +766,12 @@ export async function addNewMaintenanceLog(
       log.partCost || 0,
       log.otherCost || 0,
       log.totalCost || 0,
-      log.technician
+      log.technician,
+      log.imageUrl ? log.imageUrl.trim() : ''
     ];
 
     const appendResponse = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/MaintenanceLogs!A:J:append?valueInputOption=USER_ENTERED`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/MaintenanceLogs!A:K:append?valueInputOption=USER_ENTERED`,
       {
         method: 'POST',
         headers: {
@@ -797,6 +800,7 @@ export async function addNewMaintenanceLog(
       otherCost: log.otherCost || 0,
       totalCost: log.totalCost || 0,
       technician: log.technician,
+      imageUrl: log.imageUrl ? log.imageUrl.trim() : '',
     };
 
     return {
@@ -1001,6 +1005,116 @@ export async function updateEquipment(
     throw error;
   }
 }
+
+/**
+ * แก้ไขประวัติการซ่อมบำรุงเดิมในชีต MaintenanceLogs
+ */
+export async function updateMaintenanceLog(
+  accessToken: string,
+  spreadsheetId: string,
+  oldLog: MaintenanceLog,
+  newLog: {
+    date: string;
+    equipmentId: string;
+    equipmentName: string;
+    repairDetail: string;
+    partUsedId: string;
+    partQty: number;
+    partCost: number;
+    otherCost: number;
+    totalCost: number;
+    technician: string;
+    imageUrl?: string;
+  }
+): Promise<{ success: boolean; updatedLog: MaintenanceLog }> {
+  try {
+    // 1. ดึงข้อมูล MaintenanceLogs ทั้งหมดเพื่อหาตำแหน่งแถว
+    const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/MaintenanceLogs!A1:K1000`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData?.error?.message || 'ไม่สามารถดึงประวัติการซ่อมเพื่อแก้ไขได้');
+    }
+
+    const sheetData = await response.json();
+    const rows = sheetData.values || [];
+    
+    let rowIndex = -1;
+    for (let i = 1; i < rows.length; i++) {
+      const rowDate = rows[i][0] ? String(rows[i][0]).trim() : '';
+      const rowEqId = rows[i][1] ? String(rows[i][1]).trim() : '';
+      // เทียบวันเวลาและรหัสเครื่องจักรเพื่อหาความถูกต้องสูงสุด
+      if (rowDate === oldLog.date.trim() && rowEqId.toLowerCase() === oldLog.equipmentId.toLowerCase().trim()) {
+        rowIndex = i + 1; // Google sheets is 1-indexed
+        break;
+      }
+    }
+
+    if (rowIndex === -1) {
+      throw new Error(`ไม่พบประวัติการซ่อมแซม ณ วันเวลา: ${oldLog.date} ของเครื่องจักร: ${oldLog.equipmentId} ในระบบ`);
+    }
+
+    // เตรียมค่าที่จะบันทึก (คอลัมน์ A ถึง K)
+    const rowValue = [
+      newLog.date.trim(),
+      newLog.equipmentId.trim().toUpperCase(),
+      newLog.equipmentName.trim(),
+      newLog.repairDetail.trim(),
+      newLog.partUsedId ? newLog.partUsedId.trim().toUpperCase() : '-',
+      newLog.partQty,
+      newLog.partCost,
+      newLog.otherCost,
+      newLog.totalCost,
+      newLog.technician.trim(),
+      newLog.imageUrl ? newLog.imageUrl.trim() : ''
+    ];
+
+    // 2. ปรับปรุงข้อมูลใน MaintenanceLogs แถวเดิม ช่วง A{rowIndex}:K{rowIndex}
+    const updateResponse = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/MaintenanceLogs!A${rowIndex}:K${rowIndex}?valueInputOption=USER_ENTERED`,
+      {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          values: [rowValue],
+        }),
+      }
+    );
+
+    if (!updateResponse.ok) {
+      const errData = await updateResponse.json().catch(() => ({}));
+      throw new Error(errData?.error?.message || 'ไม่สามารถบันทึกการแก้ไขประวัติการซ่อมลงสเปรดชีตได้');
+    }
+
+    const updatedLog: MaintenanceLog = {
+      date: newLog.date.trim(),
+      equipmentId: newLog.equipmentId.trim().toUpperCase(),
+      equipmentName: newLog.equipmentName.trim(),
+      repairDetail: newLog.repairDetail.trim(),
+      partUsedId: newLog.partUsedId ? newLog.partUsedId.trim().toUpperCase() : '-',
+      partQty: newLog.partQty,
+      partCost: newLog.partCost,
+      otherCost: newLog.otherCost,
+      totalCost: newLog.totalCost,
+      technician: newLog.technician.trim(),
+      imageUrl: newLog.imageUrl ? newLog.imageUrl.trim() : '',
+    };
+
+    return {
+      success: true,
+      updatedLog
+    };
+  } catch (error: any) {
+    console.error('updateMaintenanceLog error:', error);
+    throw error;
+  }
+}
+
 
 
 

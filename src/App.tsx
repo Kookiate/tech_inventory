@@ -13,7 +13,8 @@ import {
   addNewEquipment,
   addNewMaintenanceLog,
   updateSparePart,
-  updateEquipment
+  updateEquipment,
+  updateMaintenanceLog
 } from './utils/sheets';
 import { SparePart, Transaction, Equipment, MaintenanceLog } from './types';
 import { sendPartWithdrawAlert, sendPartRestockAlert, getTelegramSettings, saveTelegramSettings, sendTelegramMessage } from './utils/telegram';
@@ -555,6 +556,7 @@ export default function App() {
     otherCost: number;
     totalCost: number;
     technician: string;
+    imageUrl?: string;
   }) => {
     if (!token || !spreadsheetId) return;
     setIsSubmittingLog(true);
@@ -593,6 +595,51 @@ export default function App() {
         title: 'ไม่สามารถบันทึกงานซ่อมได้',
         desc: error.message || 'เกิดข้อผิดพลาดในการอัปเดตสเปรดชีต'
       });
+    } finally {
+      setIsSubmittingLog(false);
+    }
+  };
+
+  // 7.7.5 แก้ไขข้อมูลประวัติงานซ่อมบำรุง
+  const handleUpdateMaintenanceLog = async (
+    oldLog: MaintenanceLog,
+    newLogData: {
+      date: string;
+      equipmentId: string;
+      equipmentName: string;
+      repairDetail: string;
+      partUsedId: string;
+      partQty: number;
+      partCost: number;
+      otherCost: number;
+      totalCost: number;
+      technician: string;
+      imageUrl?: string;
+    }
+  ) => {
+    if (!token || !spreadsheetId) return;
+    setIsSubmittingLog(true);
+    try {
+      const result = await updateMaintenanceLog(token, spreadsheetId, oldLog, newLogData);
+      if (result.success) {
+        setMaintenanceLogs(prev => prev.map(log => 
+          (log.date === oldLog.date && log.equipmentId === oldLog.equipmentId) ? result.updatedLog : log
+        ));
+        setAlertMessage({
+          type: 'success',
+          title: 'แก้ไขประวัติงานซ่อมสำเร็จ!',
+          desc: `แก้ไขประวัติการซ่อมแซมของเครื่อง "${result.updatedLog.equipmentName}" เรียบร้อยแล้ว`,
+        });
+        loadAllData(token, spreadsheetId);
+      }
+    } catch (error: any) {
+      console.error('Update maintenance log error:', error);
+      setAlertMessage({
+        type: 'error',
+        title: 'ไม่สามารถแก้ไขประวัติงานซ่อมได้',
+        desc: error.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูลสเปรดชีต'
+      });
+      throw error;
     } finally {
       setIsSubmittingLog(false);
     }
@@ -849,6 +896,7 @@ export default function App() {
                 maintenanceLogs={maintenanceLogs}
                 parts={parts}
                 onAddMaintenanceLog={handleAddNewMaintenanceLog}
+                onUpdateMaintenanceLog={handleUpdateMaintenanceLog}
                 isSubmitting={isSubmittingLog}
               />
             )}

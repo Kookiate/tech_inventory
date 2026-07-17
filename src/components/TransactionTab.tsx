@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SparePart, Equipment } from '../types';
-import { ClipboardList, Upload, Download, Calculator, UserCheck, Cpu, AlertTriangle, ChevronDown } from 'lucide-react';
+import { ClipboardList, Upload, Download, Calculator, UserCheck, Cpu, AlertTriangle, ChevronDown, Scan, Camera, QrCode, X } from 'lucide-react';
 import { getEmbeddableImageUrl } from '../utils/image';
+import { Html5Qrcode } from 'html5-qrcode';
 
 interface TransactionTabProps {
   parts: SparePart[];
@@ -32,6 +33,88 @@ export default function TransactionTab({ parts, equipments, onSubmit, isSubmitti
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [localError, setLocalError] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  // QR Code Scanner states
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [scannerError, setScannerError] = useState('');
+  const [scannerLoading, setScannerLoading] = useState(false);
+  const qrScannerRef = useRef<Html5Qrcode | null>(null);
+
+  const handleQrScanSuccess = (decodedText: string) => {
+    // ค้นหาอะไหล่ตาม ID ของ QR Code ที่สแกนได้ (กรณี ID สแกนได้ดิบ ๆ เช่น SP-001)
+    const cleanId = decodedText.trim().toUpperCase();
+    const part = parts.find(p => p.id.toUpperCase() === cleanId);
+    
+    if (part) {
+      setSelectedPartId(part.id);
+      setSearchTerm(`${part.id} | ${part.name}`);
+      setType('เบิกจ่าย'); // สลับเป็นโหมดเบิกจ่ายทันทีตามความต้องการของระบบ
+      setLocalError('');
+      setIsScannerOpen(false);
+    } else {
+      setScannerError(`❌ ไม่พบรหัสอะไหล่ "${cleanId}" ในระบบคลัง กรุณาลองใหม่อีกครั้ง`);
+    }
+  };
+
+  const stopScanner = async () => {
+    if (qrScannerRef.current) {
+      try {
+        if (qrScannerRef.current.isScanning) {
+          await qrScannerRef.current.stop();
+        }
+      } catch (err) {
+        console.error("Failed to stop scanner:", err);
+      } finally {
+        qrScannerRef.current = null;
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (isScannerOpen) {
+      setScannerLoading(true);
+      setScannerError('');
+      
+      const timer = setTimeout(() => {
+        try {
+          const scanner = new Html5Qrcode("qr-reader");
+          qrScannerRef.current = scanner;
+
+          scanner.start(
+            { facingMode: "environment" },
+            {
+              fps: 15,
+              qrbox: (width, height) => {
+                const size = Math.min(width, height) * 0.75;
+                return { width: size, height: size };
+              }
+            },
+            (decodedText) => {
+              handleQrScanSuccess(decodedText);
+            },
+            () => {
+              // ละเว้นข้อผิดพลาดเล็กน้อยในแต่ละเฟรมของกล้อง
+            }
+          ).then(() => {
+            setScannerLoading(false);
+          }).catch((err) => {
+            console.error("Failed to start scanner:", err);
+            setScannerError("ไม่สามารถเข้าถึงกล้องถ่ายรูปได้ กรุณาอนุมัติสิทธิ์การใช้งานกล้องในเบราว์เซอร์");
+            setScannerLoading(false);
+          });
+        } catch (e: any) {
+          console.error("Scanner init error:", e);
+          setScannerError("เกิดข้อผิดพลาดในการเรียกใช้ระบบโมดูลกล้องสแกนเนอร์");
+          setScannerLoading(false);
+        }
+      }, 300);
+
+      return () => {
+        clearTimeout(timer);
+        stopScanner();
+      };
+    }
+  }, [isScannerOpen]);
 
   // รองรับกรณีเบิกจ่ายด่วนผ่านปุ่มลัด
   useEffect(() => {
@@ -113,9 +196,9 @@ export default function TransactionTab({ parts, equipments, onSubmit, isSubmitti
     }
     if (!machineNote.trim()) {
       setLocalError(
-        type === 'เบิกจ่าย' && selectedEquipmentId
-          ? '❌ กรุณากรอกอาการชำรุด / การแก้ไขปรับปรุงเครื่องจักร'
-          : '❌ กรุณากรอกรหัสเครื่องจักร / ไลน์การผลิตที่นำไปซ่อมแซม'
+        type === 'เบิกจ่าย'
+          ? '❌ กรุณากรอกรายละเอียดการซ่อม/รายละเอียดของการเบิก'
+          : '❌ กรุณากรอกหมายเหตุ (เช่น เติมสต็อก, เพิ่มอะไหล่เข้าระบบใหม่)'
       );
       return;
     }
@@ -200,10 +283,20 @@ export default function TransactionTab({ parts, equipments, onSubmit, isSubmitti
           <form onSubmit={handleFormSubmit} className="space-y-5">
             {/* 1. เลือกอะไหล่ (มีระบบพิมพ์ค้นหาและแบ่งกลุ่มงาน) */}
             <div ref={dropdownRef} className="relative">
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5 font-sans flex items-center gap-1.5">
-                <span className="w-1.5 h-4 bg-blue-500 rounded-full inline-block"></span>
-                ค้นหาและเลือกอะไหล่สำรอง (จัดกลุ่มตามหมวดหมู่):
-              </label>
+              <div className="flex justify-between items-center mb-1.5">
+                <label className="block text-sm font-semibold text-slate-700 font-sans flex items-center gap-1.5">
+                  <span className="w-1.5 h-4 bg-blue-500 rounded-full inline-block"></span>
+                  ค้นหาและเลือกอะไหล่สำรอง (จัดกลุ่มตามหมวดหมู่):
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setIsScannerOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 font-bold rounded-lg text-xs transition-all active:scale-95 cursor-pointer"
+                >
+                  <Scan className="h-3.5 w-3.5" />
+                  <span>สแกน QR เบิกของ</span>
+                </button>
+              </div>
               <div className="relative">
                 <input
                   type="text"
@@ -427,24 +520,45 @@ export default function TransactionTab({ parts, equipments, onSubmit, isSubmitti
               </div>
             )}
 
-            {/* 5. รายละเอียดอาการชำรุด หรือ บรรทัดการผลิต */}
+            {/* 5. รายละเอียดอาการชำรุด หรือ หมายเหตุ */}
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5 font-sans flex items-center gap-1.5">
                 <span className="w-1.5 h-4 bg-blue-500 rounded-full inline-block"></span>
-                {type === 'เบิกจ่าย' && selectedEquipmentId ? (
-                  <span>รายละเอียดอาการชำรุด / การแก้ไขบำรุงรักษา: <span className="text-red-500">*</span></span>
+                {type === 'เบิกจ่าย' ? (
+                  <span>รายละเอียดการซ่อม/รายละเอียดของการเบิก: <span className="text-red-500">*</span></span>
                 ) : (
-                  <span>รหัสเครื่องจักร / บรรทัดไลน์ผลิตที่นำไปซ่อมแซม: <span className="text-red-500">*</span></span>
+                  <span>หมายเหตุ: <span className="text-red-500">*</span></span>
                 )}
               </label>
+
+              {type === 'รับเข้า' && (
+                <div className="mb-2">
+                  <select
+                    onChange={(e) => {
+                      if (e.target.value !== 'custom') {
+                        setMachineNote(e.target.value);
+                      } else {
+                        setMachineNote('');
+                      }
+                    }}
+                    className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-sans transition-all"
+                  >
+                    <option value="">-- เลือกหมายเหตุรวดเร็ว (Quick Select) --</option>
+                    <option value="เติมสต็อก">1. เติมสต็อก</option>
+                    <option value="เพิ่มอะไหล่เข้าระบบใหม่">2. เพิ่มอะไหล่เข้าระบบใหม่</option>
+                    <option value="custom">3. อื่นๆ (ระบุเองในช่องด้านล่าง...)</option>
+                  </select>
+                </div>
+              )}
+
               <input
                 type="text"
                 value={machineNote}
                 onChange={(e) => setMachineNote(e.target.value)}
                 placeholder={
-                  type === 'เบิกจ่าย' && selectedEquipmentId
-                    ? "เช่น เปลี่ยนกระบอกสูบตัวใหม่เนื่องจากสึกหรอ, เปลี่ยนใบมีดชำรุด"
-                    : "ระบุ เช่น เครื่องแพ็ค No.2 แผนกสไลด์ฟิล์ม"
+                  type === 'เบิกจ่าย'
+                    ? "เช่น เปลี่ยนสายพานลำเลียง, ซ่อมกระบอกสูบไลน์บรรจุ"
+                    : "ระบุรายละเอียด หรือพิมพ์หมายเหตุเพิ่มเติมได้ที่นี่..."
                 }
                 className="w-full px-4 py-3.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-sans transition-all"
               />
@@ -533,7 +647,9 @@ export default function TransactionTab({ parts, equipments, onSubmit, isSubmitti
                 <span className="font-bold text-slate-800">{technician}</span>
               </div>
               <div className="flex flex-col py-1 space-y-1">
-                <span className="text-slate-400 font-semibold">บันทึกงานซ่อม/ไลน์การผลิต:</span>
+                <span className="text-slate-400 font-semibold">
+                  {type === 'เบิกจ่าย' ? 'รายละเอียดการซ่อม/รายละเอียดของการเบิก:' : 'หมายเหตุ:'}
+                </span>
                 <span className="p-2.5 bg-slate-50 rounded-lg border border-slate-150 text-slate-800 text-[11px] leading-relaxed break-words whitespace-pre-wrap">
                   {type === 'เบิกจ่าย' && selectedEquipmentId ? `🔧 [เครื่องจักร: ${equipments.find(e => e.id === selectedEquipmentId)?.name}] ${machineNote}` : machineNote}
                 </span>
@@ -567,6 +683,111 @@ export default function TransactionTab({ parts, equipments, onSubmit, isSubmitti
                 }`}
               >
                 <span>บันทึกข้อมูล</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. โมดอลกล้องสแกนเนอร์ QR Code สำหรับเบิกของด่วน */}
+      {isScannerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <div className="bg-slate-900 rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-800 flex flex-col space-y-4 relative overflow-hidden">
+            
+            {/* เลเซอร์สแกนจำลองแบบวิ่งขึ้น-ลงสุดอลังการ */}
+            {!scannerLoading && !scannerError && (
+              <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500/80 shadow-[0_0_15px_rgba(16,185,129,0.8)] z-15" 
+                   style={{
+                     animation: 'scanner-laser 2s infinite ease-in-out'
+                   }}
+              />
+            )}
+
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800 text-white">
+              <div className="flex items-center gap-2">
+                <Camera className="h-5 w-5 text-emerald-400" />
+                <h3 className="text-base font-bold font-display">
+                  สแกนคิวอาร์โค้ดถอนเบิกอะไหล่
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsScannerOpen(false)}
+                className="text-slate-400 hover:text-white bg-slate-800/80 p-1.5 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* ช่องแสดงภาพจากกล้องสแกน QR Code */}
+              <div className="relative aspect-square bg-black rounded-xl overflow-hidden border border-slate-800 flex flex-col items-center justify-center shadow-inner">
+                
+                {/* ตัวเป้าสแกนเนอร์ */}
+                {!scannerLoading && !scannerError && (
+                  <div className="absolute inset-12 border-2 border-dashed border-emerald-500/40 rounded-xl pointer-events-none z-10 flex items-center justify-center">
+                    <div className="w-6 h-6 border-t-2 border-l-2 border-emerald-400 absolute top-0 left-0"></div>
+                    <div className="w-6 h-6 border-t-2 border-r-2 border-emerald-400 absolute top-0 right-0"></div>
+                    <div className="w-6 h-6 border-b-2 border-l-2 border-emerald-400 absolute bottom-0 left-0"></div>
+                    <div className="w-6 h-6 border-b-2 border-r-2 border-emerald-400 absolute bottom-0 right-0"></div>
+                    <span className="text-[10px] font-semibold text-emerald-400 tracking-wider bg-slate-900/80 px-2.5 py-1 rounded-full uppercase">เล็งตรงนี้</span>
+                  </div>
+                )}
+
+                {/* ตัว Canvas/Video reader ของ Html5Qrcode */}
+                <div id="qr-reader" className="w-full h-full object-cover" />
+
+                {/* สถานะกำลังโหลดกล้อง */}
+                {scannerLoading && (
+                  <div className="absolute inset-0 bg-slate-900 flex flex-col items-center justify-center space-y-3 z-20">
+                    <div className="h-10 w-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
+                    <p className="text-xs text-slate-400 font-sans font-semibold">กำลังเชื่อมต่อและเริ่มต้นใช้งานกล้อง...</p>
+                  </div>
+                )}
+
+                {/* ข้อผิดพลาด */}
+                {scannerError && (
+                  <div className="absolute inset-0 bg-slate-900/95 p-6 flex flex-col items-center justify-center text-center space-y-4 z-30">
+                    <div className="p-3 bg-rose-500/10 rounded-full text-rose-500 border border-rose-500/20">
+                      <AlertTriangle className="h-8 w-8" />
+                    </div>
+                    <p className="text-xs font-semibold text-rose-400 leading-relaxed max-w-[280px]">
+                      {scannerError}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setScannerError('');
+                        setScannerLoading(true);
+                        // รีสตาร์ทการเปิดโดยสลับเปิดปิด
+                        setIsScannerOpen(false);
+                        setTimeout(() => setIsScannerOpen(true), 200);
+                      }}
+                      className="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                    >
+                      ลองใหม่อีกครั้ง
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-3.5 bg-slate-800/60 border border-slate-800 rounded-xl text-slate-400 text-[11px] leading-relaxed font-sans space-y-1">
+                <p className="font-bold text-slate-200">📌 ขั้นตอนง่ายๆ ในการสแกนเบิก:</p>
+                <ol className="list-decimal pl-4 text-slate-400 space-y-0.5">
+                  <li>หันกล้องไปทางสติกเกอร์บาร์โค้ด QR Code ขนาด <span className="font-bold text-white font-mono">30x60mm</span></li>
+                  <li>ให้ QR Code อยู่กึ่งกลางเป้าสีเขียว</li>
+                  <li>เมื่ออ่านสำเร็จ ระบบจะดึงรหัสอะไหล่กรอกในแบบฟอร์มให้อัตโนมัติและสลับหน้าพร้อมเบิกทันที!</li>
+                </ol>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setIsScannerOpen(false)}
+                className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs transition-colors cursor-pointer border border-slate-700"
+              >
+                ปิดหน้าต่าง
               </button>
             </div>
           </div>

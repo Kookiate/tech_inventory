@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { SparePart } from '../types';
-import { Search, AlertTriangle, CheckCircle, ArrowRightLeft, RefreshCw, Layers, Plus, X, FolderPlus, HelpCircle, Edit } from 'lucide-react';
+import { Search, AlertTriangle, CheckCircle, ArrowRightLeft, RefreshCw, Layers, Plus, X, FolderPlus, HelpCircle, Edit, QrCode, Printer } from 'lucide-react';
 import { getEmbeddableImageUrl, isGoogleDriveUrl } from '../utils/image';
+import QRCode from 'qrcode';
 
 interface InventoryTabProps {
   parts: SparePart[];
@@ -57,6 +58,28 @@ export default function InventoryTab({ parts, onQuickAction, onRefresh, isRefres
   
   // สถานะเปิดดูรูปขยายใหญ่ (Lightbox Zoom)
   const [zoomedImage, setZoomedImage] = useState<{ url: string; name: string } | null>(null);
+
+  // QR Code states
+  const [selectedPartForQr, setSelectedPartForQr] = useState<SparePart | null>(null);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+
+  const handleShowQrSticker = async (part: SparePart) => {
+    setSelectedPartForQr(part);
+    try {
+      // สร้าง QR Code จาก ID ของอะไหล่ เพื่อสแกนเบิกได้รวดเร็ว
+      const url = await QRCode.toDataURL(part.id, {
+        margin: 1,
+        width: 180,
+        color: {
+          dark: '#000000',
+          light: '#ffffff'
+        }
+      });
+      setQrCodeDataUrl(url);
+    } catch (err) {
+      console.error('Failed to generate QR Code:', err);
+    }
+  };
 
   // ดึงรายการตำแหน่งจัดเก็บที่ไม่ซ้ำทั้งหมดในระบบ เพื่อสร้างเป็น Drop-down Suggestion
   const existingLocations = Array.from(
@@ -419,6 +442,15 @@ export default function InventoryTab({ parts, onQuickAction, onRefresh, isRefres
                             <Edit className="h-3 w-3 text-slate-500" />
                             <span>แก้ไข</span>
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => handleShowQrSticker(part)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-violet-50 border border-violet-200 text-violet-700 font-bold rounded-lg hover:bg-violet-100 focus:outline-none transition-all cursor-pointer active:scale-95"
+                            title="พิมพ์สติกเกอร์ QR Code"
+                          >
+                            <QrCode className="h-3 w-3" />
+                            <span>QR Code</span>
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -752,6 +784,156 @@ export default function InventoryTab({ parts, onQuickAction, onRefresh, isRefres
             <div className="mt-3 text-center">
               <h4 className="font-bold text-sm text-slate-900 font-sans">{zoomedImage.name}</h4>
               <p className="text-xs text-slate-500 mt-1">ภาพชิ้นส่วนอะไหล่จริง</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* โมดอลพิมพ์สติกเกอร์ QR Code */}
+      {selectedPartForQr && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/65 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-scale-up">
+            
+            {/* ส่วนหัว Modal */}
+            <div className="bg-slate-900 px-6 py-4 text-white flex items-center justify-between border-b-4 border-violet-500">
+              <div className="flex items-center gap-2">
+                <QrCode className="h-5 w-5 text-violet-400" />
+                <h3 className="font-display font-bold text-base">
+                  พิมพ์สติกเกอร์บาร์โค้ด QR Code
+                </h3>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setSelectedPartForQr(null)}
+                className="text-slate-400 hover:text-white transition-all cursor-pointer p-1 rounded-lg hover:bg-slate-800"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div className="text-center">
+                <p className="text-xs text-slate-500 font-sans">
+                  สติกเกอร์ขนาด <strong className="text-slate-800 font-mono">30mm x 60mm</strong> อัตราส่วน 1:2 เหมาะสำหรับพิมพ์ออกเครื่องพิมพ์ความร้อน (Thermal Label Printer)
+                </p>
+              </div>
+
+              {/* จำลองขนาดสติกเกอร์จริง (60x30 มม. อัตราส่วน 2:1) ในหน้าจอ */}
+              <div className="flex justify-center">
+                <div className="w-[320px] h-[160px] bg-white border-2 border-dashed border-slate-300 rounded-lg p-3 flex flex-row items-center justify-between shadow-md relative overflow-hidden select-none bg-slate-50/20">
+                  {/* ขอบเขตระยะปลอดภัยตัดขอบ */}
+                  <div className="absolute top-0.5 right-1 text-[8px] font-mono text-slate-300">
+                    30mm x 60mm Label
+                  </div>
+                  
+                  {/* ซีกซ้าย: QR Code */}
+                  <div className="w-[40%] flex items-center justify-center">
+                    {qrCodeDataUrl ? (
+                      <img 
+                        src={qrCodeDataUrl} 
+                        alt="Sticker QR Code" 
+                        className="w-24 h-24 object-contain bg-white p-1 border border-slate-150 rounded"
+                      />
+                    ) : (
+                      <div className="w-24 h-24 bg-slate-100 animate-pulse rounded flex items-center justify-center text-slate-400 text-[10px]">
+                        กำลังสร้าง QR...
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ซีกขวา: ข้อมูลชิ้นงาน */}
+                  <div className="w-[60%] pl-3 flex flex-col justify-center text-left h-full border-l border-slate-200">
+                    <span className="text-[10px] font-mono font-bold text-violet-600 tracking-wide">SPARE PART ID</span>
+                    <span className="text-lg font-mono font-extrabold text-slate-950 leading-none mb-1">
+                      {selectedPartForQr.id}
+                    </span>
+                    <span className="text-xs font-bold text-slate-900 leading-tight line-clamp-2 mb-1.5 font-sans">
+                      {selectedPartForQr.name}
+                    </span>
+                    <div className="space-y-0.5 text-[9px] font-medium text-slate-600 font-sans">
+                      <div><span className="text-slate-400">หมวดหมู่:</span> {selectedPartForQr.category}</div>
+                      <div><span className="text-slate-400">ตำแหน่ง:</span> {selectedPartForQr.location}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-amber-50 text-amber-900 border border-amber-200 text-xs p-3.5 rounded-xl leading-relaxed font-sans">
+                💡 <strong>คำแนะนำการสั่งพิมพ์:</strong> เมื่อกดปุ่มสั่งพิมพ์แล้ว หน้าต่างพิมพ์ของเบราว์เซอร์จะปรากฏขึ้น ให้เลือกเครื่องพิมพ์สติกเกอร์ความร้อน (Thermal Printer) แล้วตั้งค่า <strong>Paper Size</strong> เป็น <strong>30mm x 60mm</strong> (หรือ 60mm x 30mm) และปรับขนาด <strong>Margins</strong> เป็น <strong>None (ไม่มีระยะขอบ)</strong> เพื่อความพอดี
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setSelectedPartForQr(null)}
+                  className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all cursor-pointer active:scale-95"
+                >
+                  ปิดหน้าต่าง
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-5 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-md shadow-violet-600/10 font-sans"
+                >
+                  <Printer className="h-4 w-4" />
+                  <span>สั่งพิมพ์สติกเกอร์</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* โครงสร้างพิมพ์สติกเกอร์ที่มองไม่เห็นในหน้าจอปกติ แต่ใช้พิมพ์โดยเฉพาะ (Print-only view) */}
+      {selectedPartForQr && (
+        <div id="print-section" className="hidden">
+          {/* ซีกซ้าย: QR Code (25mm x 25mm) */}
+          <div style={{ width: '25mm', height: '25mm', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {qrCodeDataUrl && (
+              <img 
+                src={qrCodeDataUrl} 
+                alt="QR Code" 
+                style={{ width: '24mm', height: '24mm', objectFit: 'contain' }}
+              />
+            )}
+          </div>
+          {/* ซีกขวา: ข้อมูลชิ้นงาน (31mm x 26mm) */}
+          <div style={{ 
+            width: '31mm', 
+            height: '26mm', 
+            paddingLeft: '1.5mm', 
+            display: 'flex', 
+            flexDirection: 'column', 
+            justifyContent: 'center',
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            color: 'black',
+            overflow: 'hidden'
+          }}>
+            <div style={{ fontSize: '7.5px', fontWeight: 'bold', fontFamily: 'monospace', color: '#4f46e5', letterSpacing: '0.5px', marginBottom: '0.5px' }}>
+              SPARE PART ID
+            </div>
+            <div style={{ fontSize: '13.5px', fontWeight: '900', fontFamily: 'monospace', color: 'black', lineHeight: '1.1', marginBottom: '1px' }}>
+              {selectedPartForQr.id}
+            </div>
+            <div style={{ 
+              fontSize: '8.5px', 
+              fontWeight: 'bold', 
+              color: 'black', 
+              lineHeight: '1.2', 
+              marginBottom: '2px',
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}>
+              {selectedPartForQr.name}
+            </div>
+            <div style={{ fontSize: '7px', fontWeight: 'bold', color: '#4b5563', lineHeight: '1.2' }}>
+              ประเภท: {selectedPartForQr.category}
+            </div>
+            <div style={{ fontSize: '7px', fontWeight: 'bold', color: '#4b5563', lineHeight: '1.2' }}>
+              ตำแหน่ง: {selectedPartForQr.location}
             </div>
           </div>
         </div>

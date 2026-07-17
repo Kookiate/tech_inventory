@@ -41,6 +41,7 @@ export interface MaintenanceLog {
   otherCost: number; // ค่าใช้จ่ายนอก/ค่าบริการ
   totalCost: number; // รวมค่าใช้จ่ายทั้งหมด
   technician: string; // ช่างซ่อมผู้รับผิดชอบ
+  imageUrl?: string; // ลิงก์รูปถ่ายประวัติซ่อม
 }
 
 export interface SpreadsheetConnection {
