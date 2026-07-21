@@ -14,7 +14,9 @@ import {
   addNewMaintenanceLog,
   updateSparePart,
   updateEquipment,
-  updateMaintenanceLog
+  updateMaintenanceLog,
+  ensureAuthorizedUsersSheetExist,
+  fetchAuthorizedUsers
 } from './utils/sheets';
 import { SparePart, Transaction, Equipment, MaintenanceLog } from './types';
 import { sendPartWithdrawAlert, sendPartRestockAlert, getTelegramSettings, saveTelegramSettings, sendTelegramMessage } from './utils/telegram';
@@ -29,6 +31,8 @@ import AppsScriptExportTab from './components/AppsScriptExportTab';
 import EquipmentTab from './components/EquipmentTab';
 import MaintenanceTab from './components/MaintenanceTab';
 import TelegramSettingsModal from './components/TelegramSettingsModal';
+import UnauthorizedView from './components/UnauthorizedView';
+import PermissionsTab from './components/PermissionsTab';
 
 // ไอคอนและแอนิเมชัน
 import { 
@@ -46,7 +50,8 @@ import {
   Cpu,
   Wrench,
   Send,
-  Bell
+  Bell,
+  Shield
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -61,13 +66,17 @@ export default function App() {
   const [spreadsheetUrl, setSpreadsheetUrl] = useState<string>('');
   const [isProcessingSheet, setIsProcessingSheet] = useState(false);
 
+  // สถานะการตรวจสอบสิทธิ์ความปลอดภัย (Authorization)
+  const [isVerifyingAuth, setIsVerifyingAuth] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
   // สถานะข้อมูล
   const [parts, setParts] = useState<SparePart[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [equipments, setEquipments] = useState<Equipment[]>([]);
   const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLog[]>([]);
   
-  const [activeTab, setActiveTab] = useState<'transaction' | 'inventory' | 'equipment' | 'maintenance' | 'dashboard' | 'appsscript'>('transaction');
+  const [activeTab, setActiveTab] = useState<'transaction' | 'inventory' | 'equipment' | 'maintenance' | 'dashboard' | 'appsscript' | 'permissions'>('transaction');
   
   // ย้ายส่งรหัสเบิกด่วน
   const [preSelectedPartId, setPreSelectedPartId] = useState<string | undefined>(undefined);
@@ -83,6 +92,40 @@ export default function App() {
   const [showTelegramModal, setShowTelegramModal] = useState(false);
   const [isTelegramEnabled, setIsTelegramEnabled] = useState(localStorage.getItem('telegram_enabled') === 'true');
 
+  // ฟังก์ชันตรวจสอบสิทธิ์ผู้ใช้จากแผ่นงาน AuthorizedUsers
+  const verifyUser = async (currentUser: User, accessToken: string, sheetId: string): Promise<boolean> => {
+    setIsVerifyingAuth(true);
+    setAuthError(null);
+    try {
+      const email = currentUser.email;
+      if (!email) {
+        setAuthError('ไม่พบบัญชีอีเมลของคุณในข้อมูลโปรไฟล์ Google');
+        setIsVerifyingAuth(false);
+        return false;
+      }
+      
+      // ดึงสิทธิ์ผู้ใช้ และตรวจสอบว่ามีอีเมลนี้หรือไม่
+      // ถ้าหากยังไม่มีชีต ระบบจะทำการสร้างและเพิ่มอีเมลปัจจุบันลงไปให้เป็นผู้สร้างโดยอัตโนมัติเพื่อความปลอดภัยไม่ให้ล็อกตัวเองออก
+      const list = await fetchAuthorizedUsers(accessToken, sheetId, email);
+      const isAllowed = list.some(u => u.email.trim().toLowerCase() === email.trim().toLowerCase());
+      
+      if (!isAllowed) {
+        setAuthError(`ขออภัย อีเมลของคุณ "${email}" ยังไม่ได้รับสิทธิ์ให้เข้าใช้งานระบบฐานข้อมูลนี้ กรุณาติดต่อผู้ควบคุมระบบเพื่อเพิ่มอีเมลนี้ลงในแผ่นงาน "AuthorizedUsers" ของ Google Sheets`);
+        setIsVerifyingAuth(false);
+        return false;
+      }
+      
+      setIsVerifyingAuth(false);
+      return true;
+    } catch (error: any) {
+      console.error('Verify user error:', error);
+      // หากเข้าไม่ถึงสเปรดชีต (เช่น ไม่มีสิทธิ์เปิดใน Google Drive)
+      setAuthError(`คุณไม่มีสิทธิ์เข้าถึงสเปรดชีตนี้ หรือสิทธิ์ใช้งานของคุณหมดอายุ\nกรุณาติดต่อเจ้าของระบบ หรือลงชื่อเข้าใช้งานด้วยบัญชี Google ที่ได้รับสิทธิ์แชร์ไฟล์สเปรดชีตนี้`);
+      setIsVerifyingAuth(false);
+      return false;
+    }
+  };
+
   // 1. ตรวจสอบสถานะล็อกอินตั้งต้น
   useEffect(() => {
     // โหลดไอดีชีตที่เคยบันทึกไว้ในเบราว์เซอร์
@@ -95,7 +138,7 @@ export default function App() {
 
     // เริ่มระบบติดตาม Auth
     initAuth(
-      (currentUser, accessToken) => {
+      async (currentUser, accessToken) => {
         setUser(currentUser);
         setToken(accessToken);
         setNeedsAuth(false);
@@ -103,7 +146,10 @@ export default function App() {
         
         // ดึงข้อมูลคลังทันทีถ้ามีการเชื่อมโยงชีตแล้ว
         if (savedSheetId) {
-          loadAllData(accessToken, savedSheetId);
+          const isAllowed = await verifyUser(currentUser, accessToken, savedSheetId);
+          if (isAllowed) {
+            loadAllData(accessToken, savedSheetId);
+          }
         }
       },
       () => {
@@ -125,7 +171,10 @@ export default function App() {
         // ดึงข้อมูลหากมีชีตอยู่แล้ว
         const savedSheetId = localStorage.getItem('spare_part_spreadsheet_id');
         if (savedSheetId) {
-          loadAllData(result.accessToken, savedSheetId);
+          const isAllowed = await verifyUser(result.user, result.accessToken, savedSheetId);
+          if (isAllowed) {
+            loadAllData(result.accessToken, savedSheetId);
+          }
         }
       }
     } catch (error: any) {
@@ -189,7 +238,7 @@ export default function App() {
     if (!token) return;
     setIsProcessingSheet(true);
     try {
-      const newSheet = await createNewInventorySpreadsheet(token);
+      const newSheet = await createNewInventorySpreadsheet(token, user?.email || undefined);
       setSpreadsheetId(newSheet.id);
       setSpreadsheetUrl(newSheet.url);
       
@@ -215,9 +264,16 @@ export default function App() {
 
   // 5. เชื่อมต่อสเปรดชีตเดิมด้วยไอดีหรือลิงก์
   const handleConnectExistingSpreadsheet = async (sheetId: string) => {
-    if (!token) return;
+    if (!token || !user) return;
     setIsProcessingSheet(true);
     try {
+      // ตรวจสอบสิทธิ์ว่าอีเมลนี้ถูกอนุญาตในชีตนี้หรือไม่
+      const isAllowed = await verifyUser(user, token, sheetId);
+      if (!isAllowed) {
+        setIsProcessingSheet(false);
+        return;
+      }
+
       // ทดลองดึงข้อมูลเพื่อดูว่าเชื่อมต่อได้จริงและตารางมีโครงสร้างถูกต้องหรือไม่
       await loadAllData(token, sheetId);
       
@@ -670,6 +726,47 @@ export default function App() {
     return <LoginView onLogin={handleLogin} isLoggingIn={isLoggingIn} />;
   }
 
+  // แสดงผลหากกำลังอยู่ในกระบวนการยืนยันสิทธิ์ความปลอดภัย
+  if (isVerifyingAuth) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center font-sans">
+        <div className="bg-white p-8 rounded-2xl shadow-xl shadow-slate-100 border border-slate-100 flex flex-col items-center max-w-sm w-full text-center">
+          <RefreshCw className="h-10 w-10 text-blue-600 animate-spin mb-4" />
+          <h3 className="text-base font-bold text-slate-800">กำลังตรวจสอบสิทธิ์การเข้าใช้งาน...</h3>
+          <p className="text-xs text-slate-400 mt-1">ตรวจสอบบัญชีอีเมลกับระบบฐานข้อมูลความปลอดภัย</p>
+        </div>
+      </div>
+    );
+  }
+
+  // แสดงผลหากไม่มีสิทธิ์ใช้งานฐานข้อมูลนี้
+  if (authError) {
+    return (
+      <UnauthorizedView 
+        userEmail={user?.email || ''} 
+        authError={authError} 
+        onLogout={async () => {
+          await logout();
+          setUser(null);
+          setToken(null);
+          setNeedsAuth(true);
+          setAuthError(null);
+        }}
+        onDisconnect={() => {
+          setSpreadsheetId(null);
+          setSpreadsheetUrl('');
+          setParts([]);
+          setTransactions([]);
+          setEquipments([]);
+          setMaintenanceLogs([]);
+          localStorage.removeItem('spare_part_spreadsheet_id');
+          localStorage.removeItem('spare_part_spreadsheet_url');
+          setAuthError(null);
+        }}
+      />
+    );
+  }
+
   // แสดงผลหน้าจอนำเข้าเลือก Spreadsheet หากยังไม่ทำการเชื่อมโยง
   if (!spreadsheetId) {
     return (
@@ -844,6 +941,18 @@ export default function App() {
               <Terminal className="h-4 w-4 shrink-0" />
               <span>คู่มือติดตั้ง GAS</span>
             </button>
+
+            <button
+              onClick={() => setActiveTab('permissions')}
+              className={`px-4 sm:px-6 py-4 border-b-4 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === 'permissions' 
+                  ? 'text-blue-600 border-blue-600 font-bold' 
+                  : 'text-slate-500 border-transparent hover:border-slate-300 font-medium'
+              }`}
+            >
+              <Shield className="h-4 w-4 shrink-0 text-indigo-500" />
+              <span>จัดการสิทธิ์เข้าใช้งาน</span>
+            </button>
           </div>
         </div>
       </div>
@@ -913,6 +1022,15 @@ export default function App() {
 
             {activeTab === 'appsscript' && (
               <AppsScriptExportTab />
+            )}
+
+            {activeTab === 'permissions' && (
+              <PermissionsTab 
+                accessToken={token!} 
+                spreadsheetId={spreadsheetId} 
+                currentUserEmail={user?.email || ''}
+                onRefreshData={() => loadAllData(token!, spreadsheetId)}
+              />
             )}
           </motion.div>
         </AnimatePresence>

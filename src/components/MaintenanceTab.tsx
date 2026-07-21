@@ -887,42 +887,70 @@ export default function MaintenanceTab({
                   </div>
 
                   {imageInputMethod === 'upload' ? (
-                    <div className="space-y-2">
-                      {/* Drag & Drop Area */}
-                      <div 
-                        className="border-2 border-dashed border-slate-300 rounded-xl p-4 text-center hover:bg-slate-100/50 hover:border-violet-400 transition-all cursor-pointer relative"
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          const file = e.dataTransfer.files?.[0];
+                    <div className="space-y-3">
+                      {/* Hidden file inputs */}
+                      <input 
+                        type="file" 
+                        id="repair-image-upload" 
+                        accept="image/*" 
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
                           if (file) handleFileChange(file, false);
                         }}
-                      >
-                        <input 
-                          type="file" 
-                          id="repair-image-upload" 
-                          accept="image/*" 
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) handleFileChange(file, false);
-                          }}
-                          className="hidden" 
-                        />
-                        <label htmlFor="repair-image-upload" className="cursor-pointer block">
-                          {isUploadingImage ? (
-                            <div className="flex flex-col items-center justify-center space-y-2">
-                              <RefreshCw className="h-6 w-6 text-violet-600 animate-spin" />
-                              <span className="text-xs text-slate-500 font-sans">กำลังอัปโหลดและลดขนาดภาพเพื่อประหยัดหน่วยความจำ...</span>
+                        className="hidden" 
+                      />
+                      <input 
+                        type="file" 
+                        id="repair-image-camera" 
+                        accept="image/*" 
+                        capture="environment"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleFileChange(file, false);
+                        }}
+                        className="hidden" 
+                      />
+
+                      {isUploadingImage ? (
+                        <div className="border border-dashed border-slate-300 rounded-xl p-6 text-center bg-slate-50/50">
+                          <div className="flex flex-col items-center justify-center space-y-2">
+                            <RefreshCw className="h-6 w-6 text-violet-600 animate-spin" />
+                            <span className="text-xs text-slate-500 font-sans font-semibold">กำลังโหลดและย่อขนาดภาพเพื่อประหยัดพื้นที่คลัง...</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {/* Option 1: Live Camera snip */}
+                          <label 
+                            htmlFor="repair-image-camera"
+                            className="border-2 border-dashed border-slate-300 hover:border-violet-500 hover:bg-violet-50/20 rounded-xl p-4 text-center cursor-pointer flex flex-col items-center justify-center gap-1.5 transition-all group active:scale-[0.98]"
+                          >
+                            <div className="h-10 w-10 bg-violet-50 text-violet-600 rounded-full flex items-center justify-center group-hover:bg-violet-100 group-hover:text-violet-700 transition-colors">
+                              <Camera className="h-5 w-5" />
                             </div>
-                          ) : (
-                            <div className="flex flex-col items-center justify-center space-y-1.5">
-                              <Camera className="h-6 w-6 text-slate-400" />
-                              <span className="text-xs font-bold text-slate-600 font-sans">คลิก หรือลากและวางรูปภาพตรงนี้</span>
-                              <span className="text-[10px] text-slate-400 font-sans">สามารถใช้ถ่ายรูปจากมือถือได้ทันที (ระบบย่อภาพอัตโนมัติ)</span>
+                            <span className="text-xs font-bold text-slate-700 block">เปิดกล้องถ่ายภาพทันที</span>
+                            <span className="text-[10px] text-slate-400 font-sans block">ใช้กล้องมือถือถ่ายภาพสด ณ ขณะนั้น</span>
+                          </label>
+
+                          {/* Option 2: Upload existing file */}
+                          <label 
+                            htmlFor="repair-image-upload"
+                            className="border-2 border-dashed border-slate-300 hover:border-violet-500 hover:bg-violet-50/20 rounded-xl p-4 text-center cursor-pointer flex flex-col items-center justify-center gap-1.5 transition-all group active:scale-[0.98]"
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              const file = e.dataTransfer.files?.[0];
+                              if (file) handleFileChange(file, false);
+                            }}
+                          >
+                            <div className="h-10 w-10 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center group-hover:bg-indigo-100 group-hover:text-indigo-700 transition-colors">
+                              <Upload className="h-5 w-5" />
                             </div>
-                          )}
-                        </label>
-                      </div>
+                            <span className="text-xs font-bold text-slate-700 block">เลือกรูปภาพจากคลังภาพ / ไฟล์</span>
+                            <span className="text-[10px] text-slate-400 font-sans block">เลือกจากอัลบั้มหรือลากและวางรูปภาพ</span>
+                          </label>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div>
@@ -1263,7 +1291,7 @@ export default function MaintenanceTab({
                 </div>
 
                 {editImageInputMethod === 'upload' ? (
-                  <div className="border-2 border-dashed border-slate-300 rounded-xl p-3 text-center hover:bg-slate-100/50 hover:border-violet-400 transition-all cursor-pointer relative">
+                  <div className="space-y-3">
                     <input 
                       type="file" 
                       id="edit-repair-image-upload" 
@@ -1274,13 +1302,41 @@ export default function MaintenanceTab({
                       }}
                       className="hidden" 
                     />
-                    <label htmlFor="edit-repair-image-upload" className="cursor-pointer block">
-                      {isEditingUploadingImage ? (
-                        <RefreshCw className="h-5 w-5 text-violet-600 animate-spin mx-auto" />
-                      ) : (
-                        <div className="text-xs font-bold text-slate-600">คลิกที่นี่เพื่ออัปโหลดรูปภาพทดแทน</div>
-                      )}
-                    </label>
+                    <input 
+                      type="file" 
+                      id="edit-repair-image-camera" 
+                      accept="image/*" 
+                      capture="environment"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleFileChange(file, true);
+                      }}
+                      className="hidden" 
+                    />
+
+                    {isEditingUploadingImage ? (
+                      <div className="border border-dashed border-slate-200 rounded-xl p-4 bg-slate-50 flex items-center justify-center">
+                        <RefreshCw className="h-5 w-5 text-violet-600 animate-spin" />
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-3">
+                        <label 
+                          htmlFor="edit-repair-image-camera"
+                          className="border border-dashed border-slate-300 hover:border-violet-500 hover:bg-violet-50/20 rounded-xl p-3 text-center cursor-pointer flex flex-col items-center justify-center gap-1 transition-all group text-slate-600"
+                        >
+                          <Camera className="h-4 w-4 text-slate-400 group-hover:text-violet-600" />
+                          <span className="text-[11px] font-bold">ถ่ายรูปใหม่จากกล้อง</span>
+                        </label>
+                        
+                        <label 
+                          htmlFor="edit-repair-image-upload"
+                          className="border border-dashed border-slate-300 hover:border-indigo-500 hover:bg-indigo-50/20 rounded-xl p-3 text-center cursor-pointer flex flex-col items-center justify-center gap-1 transition-all group text-slate-600"
+                        >
+                          <Upload className="h-4 w-4 text-slate-400 group-hover:text-indigo-600" />
+                          <span className="text-[11px] font-bold">เลือกจากอัลบั้มรูป</span>
+                        </label>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <input

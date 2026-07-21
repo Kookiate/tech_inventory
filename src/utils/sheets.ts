@@ -4,7 +4,7 @@ import { SparePart, Transaction, Equipment, MaintenanceLog } from '../types';
  * ฟังก์ชันสร้างสเปรดชีต Google Sheet ใหม่ในบัญชีของผู้ใช้
  * พร้อมตั้งค่าชีต Inventory, Transactions, Equipment, และ MaintenanceLogs และป้อนข้อมูลตั้งต้น
  */
-export async function createNewInventorySpreadsheet(accessToken: string): Promise<{ id: string; url: string }> {
+export async function createNewInventorySpreadsheet(accessToken: string, creatorEmail?: string): Promise<{ id: string; url: string }> {
   try {
     const response = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
       method: 'POST',
@@ -41,6 +41,12 @@ export async function createNewInventorySpreadsheet(accessToken: string): Promis
               gridProperties: { rowCount: 1000, columnCount: 12 },
             },
           },
+          {
+            properties: {
+              title: 'AuthorizedUsers',
+              gridProperties: { rowCount: 100, columnCount: 5 },
+            },
+          },
         ],
       }),
     });
@@ -62,6 +68,9 @@ export async function createNewInventorySpreadsheet(accessToken: string): Promis
 
     // เติมข้อมูลตั้งต้นใน Equipment & MaintenanceLogs
     await populateDefaultEquipmentAndLogs(accessToken, spreadsheetId);
+
+    // เติมสิทธิ์ผู้ใช้เริ่มต้น
+    await populateDefaultAuthorizedUsers(accessToken, spreadsheetId, creatorEmail);
 
     return { id: spreadsheetId, url: spreadsheetUrl };
   } catch (error: any) {
@@ -1111,6 +1120,248 @@ export async function updateMaintenanceLog(
     };
   } catch (error: any) {
     console.error('updateMaintenanceLog error:', error);
+    throw error;
+  }
+}
+
+/**
+ * ป้อนหัวตารางและอีเมลผู้สร้างลงชีต AuthorizedUsers
+ */
+async function populateDefaultAuthorizedUsers(accessToken: string, spreadsheetId: string, creatorEmail?: string) {
+  try {
+    const headers = [
+      ['อีเมลที่ได้รับอนุญาต', 'ชื่อ-นามสกุล', 'บทบาท', 'วันที่เพิ่ม']
+    ];
+    const rows = [...headers];
+    if (creatorEmail) {
+      rows.push([
+        creatorEmail.trim().toLowerCase(),
+        'เจ้าของระบบ (ผู้เริ่มสร้าง)',
+        'ผู้ดูแลระบบ',
+        new Date().toLocaleDateString('th-TH')
+      ]);
+    }
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/AuthorizedUsers!A1:D2?valueInputOption=USER_ENTERED`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ values: rows }),
+    });
+  } catch (error) {
+    console.error('populateDefaultAuthorizedUsers error:', error);
+  }
+}
+
+/**
+ * ตรวจสอบและสร้างชีต AuthorizedUsers ในกรณีที่เปิดชีตเก่าที่ยังไม่มี
+ */
+export async function ensureAuthorizedUsersSheetExist(accessToken: string, spreadsheetId: string, currentUserEmail?: string): Promise<void> {
+  try {
+    const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!response.ok) return;
+
+    const data = await response.json();
+    const sheetTitles = (data.sheets || []).map((s: any) => s.properties?.title);
+
+    const hasAuthorizedUsers = sheetTitles.includes('AuthorizedUsers');
+
+    if (!hasAuthorizedUsers) {
+      const requests = [{
+        addSheet: {
+          properties: { title: 'AuthorizedUsers', gridProperties: { rowCount: 100, columnCount: 5 } }
+        }
+      }];
+
+      const updateResponse = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ requests }),
+      });
+
+      if (updateResponse.ok) {
+        const valData: any[] = [
+          {
+            range: 'AuthorizedUsers!A1:D1',
+            values: [['อีเมลที่ได้รับอนุญาต', 'ชื่อ-นามสกุล', 'บทบาท', 'วันที่เพิ่ม']]
+          }
+        ];
+        if (currentUserEmail) {
+          valData.push({
+            range: 'AuthorizedUsers!A2:D2',
+            values: [[currentUserEmail.trim().toLowerCase(), 'เจ้าของระบบ (ผู้ติดตั้ง)', 'ผู้ดูแลระบบ', new Date().toLocaleDateString('th-TH')]]
+          });
+        }
+
+        await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            valueInputOption: 'USER_ENTERED',
+            data: valData
+          })
+        });
+      }
+    }
+  } catch (error) {
+    console.error('ensureAuthorizedUsersSheetExist error:', error);
+  }
+}
+
+export interface AuthorizedUser {
+  email: string;
+  name: string;
+  role: string;
+  dateAdded: string;
+}
+
+/**
+ * ดึงข้อมูลผู้ได้รับอนุญาตทั้งหมดจากชีต AuthorizedUsers
+ */
+export async function fetchAuthorizedUsers(accessToken: string, spreadsheetId: string, currentUserEmail?: string): Promise<AuthorizedUser[]> {
+  try {
+    // ตรวจสอบและอัปเกรดเพื่อรองรับชีตสิทธิ์
+    await ensureAuthorizedUsersSheetExist(accessToken, spreadsheetId, currentUserEmail);
+
+    const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/AuthorizedUsers!A2:D100`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!response.ok) return [];
+
+    const data = await response.json();
+    const rows = data.values || [];
+
+    return rows.map((row: any) => {
+      return {
+        email: row[0] ? String(row[0]).trim().toLowerCase() : '',
+        name: row[1] ? String(row[1]).trim() : '',
+        role: row[2] ? String(row[2]).trim() : 'ผู้ใช้งาน',
+        dateAdded: row[3] ? String(row[3]).trim() : '',
+      };
+    }).filter((u: AuthorizedUser) => u.email !== '');
+  } catch (error) {
+    console.error('Error fetching authorized users:', error);
+    return [];
+  }
+}
+
+/**
+ * เพิ่มรายชื่อผู้ได้รับอนุญาตใหม่ลงในชีต AuthorizedUsers
+ */
+export async function addAuthorizedUser(
+  accessToken: string,
+  spreadsheetId: string,
+  newUser: { email: string; name: string; role: string }
+): Promise<void> {
+  try {
+    const rowValue = [
+      newUser.email.trim().toLowerCase(),
+      newUser.name.trim(),
+      newUser.role.trim(),
+      new Date().toLocaleDateString('th-TH')
+    ];
+
+    const appendResponse = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/AuthorizedUsers!A:D:append?valueInputOption=USER_ENTERED`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          values: [rowValue],
+        }),
+      }
+    );
+
+    if (!appendResponse.ok) {
+      throw new Error('ไม่สามารถเพิ่มอีเมลผู้ใช้ลง Google Sheet ได้');
+    }
+  } catch (error) {
+    console.error('addAuthorizedUser error:', error);
+    throw error;
+  }
+}
+
+/**
+ * ลบรายชื่อผู้ได้รับอนุญาตจากชีต AuthorizedUsers
+ */
+export async function removeAuthorizedUser(
+  accessToken: string,
+  spreadsheetId: string,
+  email: string
+): Promise<void> {
+  try {
+    // ดึงข้อมูลชีตทั้งหมดเพื่อหา sheetId ของชีต "AuthorizedUsers" และหาแถวที่จะลบ
+    const spreadsheetResponse = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!spreadsheetResponse.ok) {
+      throw new Error('ไม่สามารถดึงข้อมูลสเปรดชีตเพื่อทำรายการได้');
+    }
+    const spreadsheetData = await spreadsheetResponse.json();
+    const authorizedUsersSheet = (spreadsheetData.sheets || []).find((s: any) => s.properties?.title === 'AuthorizedUsers');
+    if (!authorizedUsersSheet) return;
+
+    const sheetId = authorizedUsersSheet.properties.sheetId;
+
+    const valuesResponse = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/AuthorizedUsers!A1:A100`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!valuesResponse.ok) return;
+
+    const valuesData = await valuesResponse.json();
+    const rows = valuesData.values || [];
+
+    let rowIndexToDelete = -1;
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i][0] && String(rows[i][0]).trim().toLowerCase() === email.trim().toLowerCase()) {
+        rowIndexToDelete = i; // 0-based index of row in sheet (A2 is index 1)
+        break;
+      }
+    }
+
+    if (rowIndexToDelete === -1) return; // ไม่เจอ ไม่ต้องทำอะไร
+
+    // ลบแถวโดยใช้ batchUpdate (deleteDimension)
+    const requests = [
+      {
+        deleteDimension: {
+          range: {
+            sheetId,
+            dimension: 'ROWS',
+            startIndex: rowIndexToDelete,
+            endIndex: rowIndexToDelete + 1,
+          },
+        },
+      },
+    ];
+
+    const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ requests }),
+    });
+
+    if (!response.ok) {
+      throw new Error('ไม่สามารถลบแถวผู้ใช้ที่ได้รับอนุญาตได้');
+    }
+  } catch (error) {
+    console.error('removeAuthorizedUser error:', error);
     throw error;
   }
 }
