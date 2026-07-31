@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Equipment, MaintenanceLog, SparePart } from '../types';
+import { getEmbeddableImageUrl } from '../utils/image';
 import { 
   Wrench, Plus, Search, Calendar, DollarSign, ShieldAlert, Cpu, Settings, Edit, 
   X, Upload, Image, Link, BarChart2, TrendingUp, Maximize2, FileText, AlertTriangle, 
-  CheckCircle, ArrowRightLeft, RefreshCw, Camera, Eye
+  CheckCircle, ArrowRightLeft, RefreshCw, Camera, Eye, FolderPlus, ExternalLink
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, 
@@ -66,10 +67,8 @@ export default function MaintenanceTab({
   const [technician, setTechnician] = useState('');
   const [formError, setFormError] = useState('');
 
-  // Form Image states
-  const [imageInputMethod, setImageInputMethod] = useState<'upload' | 'url'>('upload');
+  // Form Image state
   const [imageUrl, setImageUrl] = useState('');
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   // Edit states
   const [editingLog, setEditingLog] = useState<MaintenanceLog | null>(null);
@@ -77,106 +76,10 @@ export default function MaintenanceTab({
   const [editOtherCost, setEditOtherCost] = useState<number>(0);
   const [editTechnician, setEditTechnician] = useState('');
   const [editImageUrl, setEditImageUrl] = useState('');
-  const [editImageInputMethod, setEditImageInputMethod] = useState<'upload' | 'url'>('upload');
-  const [isEditingUploadingImage, setIsEditingUploadingImage] = useState(false);
   const [editError, setEditError] = useState('');
 
   // Lightbox Zoom state
   const [zoomedImage, setZoomedImage] = useState<{ url: string; name: string } | null>(null);
-
-  // Helper: Fast Image Resizer & Compressor (Uses ObjectURL for speed and limits base64 size <= 38,000 chars for Google Sheets cells)
-  const compressImage = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const objectUrl = URL.createObjectURL(file);
-      const img = new Image();
-
-      img.onload = () => {
-        URL.revokeObjectURL(objectUrl);
-
-        let maxDim = 320;
-        let quality = 0.55;
-
-        const processCanvas = (dim: number, q: number): string => {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-
-          if (width > height) {
-            if (width > dim) {
-              height = Math.round(height * (dim / width));
-              width = dim;
-            }
-          } else {
-            if (height > dim) {
-              width = Math.round(width * (dim / height));
-              height = dim;
-            }
-          }
-
-          canvas.width = Math.max(10, width);
-          canvas.height = Math.max(10, height);
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            return canvas.toDataURL('image/jpeg', q);
-          }
-          return '';
-        };
-
-        let dataUrl = processCanvas(maxDim, quality);
-
-        // ย่อขนาดลงเรื่อยๆ หากยังเกิน 38,000 ตัวอักษร เพื่อให้ส่ง Google Sheets API ได้ 100% โดยไม่ติดขัด
-        while (dataUrl.length > 38000 && maxDim > 100) {
-          maxDim -= 30;
-          if (quality > 0.3) quality -= 0.05;
-          dataUrl = processCanvas(maxDim, quality);
-        }
-
-        if (dataUrl) {
-          resolve(dataUrl);
-        } else {
-          reject(new Error('ไม่สามารถประมวลผลรูปภาพได้'));
-        }
-      };
-
-      img.onerror = (err) => {
-        URL.revokeObjectURL(objectUrl);
-        reject(err);
-      };
-
-      img.src = objectUrl;
-    });
-  };
-
-  const handleFileChange = async (file: File, isEdit: boolean) => {
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      alert('กรุณาเลือกไฟล์รูปภาพเท่านั้น (เช่น JPG, PNG, WEBP)');
-      return;
-    }
-    try {
-      if (isEdit) {
-        setIsEditingUploadingImage(true);
-        const compressed = await compressImage(file);
-        setEditImageUrl(compressed);
-      } else {
-        setIsUploadingImage(true);
-        const compressed = await compressImage(file);
-        setImageUrl(compressed);
-      }
-    } catch (err: any) {
-      console.error('Error compressing image:', err);
-      alert('เกิดข้อผิดพลาดในการประมวลผลรูปภาพ กรุณาลองใหม่อีกครั้ง');
-    } finally {
-      if (isEdit) {
-        setIsEditingUploadingImage(false);
-      } else {
-        setIsUploadingImage(false);
-      }
-    }
-  };
 
   const getEmbeddableImageUrl = (url: string): string => {
     if (!url) return '';
@@ -203,7 +106,6 @@ export default function MaintenanceTab({
     setEditOtherCost(log.otherCost);
     setEditTechnician(log.technician);
     setEditImageUrl(log.imageUrl || '');
-    setEditImageInputMethod(log.imageUrl?.startsWith('data:') ? 'upload' : 'url');
     setEditError('');
   };
 
@@ -883,135 +785,80 @@ export default function MaintenanceTab({
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
                   <span className="text-[11px] font-bold text-slate-700 block border-b border-slate-200 pb-1 flex items-center gap-1.5">
                     <Camera className="h-4 w-4 text-violet-600" />
-                    ระบบแนบรูปถ่ายประกอบการซ่อม (Repair Log Photo Attachment)
+                    แนบรูปถ่ายประกอบการซ่อม (แนบลิงก์ Google Drive หรือ URL รูปภาพ)
                   </span>
 
-                  {/* Input method toggle */}
-                  <div className="flex gap-2 mb-2">
-                    <button
-                      type="button"
-                      onClick={() => setImageInputMethod('upload')}
-                      className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                        imageInputMethod === 'upload' 
-                          ? 'bg-violet-600 text-white' 
-                          : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
-                      }`}
-                    >
-                      <Upload className="h-3 w-3" />
-                      <span>อัปโหลดภาพถ่ายตรงนี้ (บีบอัดลื่นไหล)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setImageInputMethod('url')}
-                      className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                        imageInputMethod === 'url' 
-                          ? 'bg-violet-600 text-white' 
-                          : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
-                      }`}
-                    >
-                      <Link className="h-3 w-3" />
-                      <span>วางลิงก์รูปภาพ (Google Drive หรือ URL อื่นๆ)</span>
-                    </button>
-                  </div>
-
-                  {imageInputMethod === 'upload' ? (
-                    <div className="space-y-3">
-                      {/* Hidden file inputs */}
-                      <input 
-                        type="file" 
-                        id="repair-image-upload" 
-                        accept="image/*" 
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleFileChange(file, false);
-                        }}
-                        className="hidden" 
-                      />
-                      <input 
-                        type="file" 
-                        id="repair-image-camera" 
-                        accept="image/*" 
-                        capture="environment"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleFileChange(file, false);
-                        }}
-                        className="hidden" 
-                      />
-
-                      {isUploadingImage ? (
-                        <div className="border border-dashed border-slate-300 rounded-xl p-6 text-center bg-slate-50/50">
-                          <div className="flex flex-col items-center justify-center space-y-2">
-                            <RefreshCw className="h-6 w-6 text-violet-600 animate-spin" />
-                            <span className="text-xs text-slate-500 font-sans font-semibold">กำลังโหลดและย่อขนาดภาพเพื่อประหยัดพื้นที่คลัง...</span>
+                  <div className="space-y-2.5">
+                    {/* ปุ่มทางลัดเปิดโฟลเดอร์ Google Drive กลาง */}
+                    {localStorage.getItem('drive_folder_url') ? (
+                      <div className="p-3 bg-violet-50 border border-violet-200/80 rounded-xl flex items-center justify-between gap-3 shadow-xs">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="h-8 w-8 bg-violet-600 text-white rounded-lg flex items-center justify-center shrink-0 shadow-xs">
+                            <FolderPlus className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-violet-950 truncate">โฟลเดอร์จัดเก็บรูป Google Drive กลาง</p>
+                            <p className="text-[10px] text-violet-700 truncate">คลิกเปิดเพื่อลากวางรูปขึ้น Drive แล้วคัดลอกลิงก์มาวางด้านล่าง</p>
                           </div>
                         </div>
-                      ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {/* Option 1: Live Camera snip */}
-                          <label 
-                            htmlFor="repair-image-camera"
-                            className="border-2 border-dashed border-slate-300 hover:border-violet-500 hover:bg-violet-50/20 rounded-xl p-4 text-center cursor-pointer flex flex-col items-center justify-center gap-1.5 transition-all group active:scale-[0.98]"
-                          >
-                            <div className="h-10 w-10 bg-violet-50 text-violet-600 rounded-full flex items-center justify-center group-hover:bg-violet-100 group-hover:text-violet-700 transition-colors">
-                              <Camera className="h-5 w-5" />
-                            </div>
-                            <span className="text-xs font-bold text-slate-700 block">เปิดกล้องถ่ายภาพทันที</span>
-                            <span className="text-[10px] text-slate-400 font-sans block">ใช้กล้องมือถือถ่ายภาพสด ณ ขณะนั้น</span>
-                          </label>
+                        <a
+                          href={localStorage.getItem('drive_folder_url')!}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white font-semibold text-xs rounded-lg shadow-xs flex items-center gap-1 shrink-0 transition-all cursor-pointer"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          <span>เปิดโฟลเดอร์ Drive</span>
+                        </a>
+                      </div>
+                    ) : (
+                      <div className="p-2.5 bg-amber-50/80 border border-amber-200/80 rounded-xl text-[11px] text-amber-900 flex items-center justify-between gap-2">
+                        <span className="text-amber-800">💡 เคล็ดลับ: ตั้งค่าโฟลเดอร์ Google Drive กลางในแท็บ "จัดระบบ & สิทธิ์" เพื่อคลิกเปิดโฟลเดอร์ลากวางรูปได้สะดวก</span>
+                      </div>
+                    )}
 
-                          {/* Option 2: Upload existing file */}
-                          <label 
-                            htmlFor="repair-image-upload"
-                            className="border-2 border-dashed border-slate-300 hover:border-violet-500 hover:bg-violet-50/20 rounded-xl p-4 text-center cursor-pointer flex flex-col items-center justify-center gap-1.5 transition-all group active:scale-[0.98]"
-                            onDragOver={(e) => e.preventDefault()}
-                            onDrop={(e) => {
-                              e.preventDefault();
-                              const file = e.dataTransfer.files?.[0];
-                              if (file) handleFileChange(file, false);
-                            }}
-                          >
-                            <div className="h-10 w-10 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center group-hover:bg-indigo-100 group-hover:text-indigo-700 transition-colors">
-                              <Upload className="h-5 w-5" />
-                            </div>
-                            <span className="text-xs font-bold text-slate-700 block">เลือกรูปภาพจากคลังภาพ / ไฟล์</span>
-                            <span className="text-[10px] text-slate-400 font-sans block">เลือกจากอัลบั้มหรือลากและวางรูปภาพ</span>
-                          </label>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div>
+                    <div className="relative">
                       <input
                         type="url"
-                        placeholder="วางที่อยู่ลิงก์รูปภาพ เช่น ลิงก์ที่แชร์จาก Google Drive..."
+                        placeholder="วางลิงก์รูปภาพ เช่น https://drive.google.com/file/d/..."
                         value={imageUrl}
                         onChange={(e) => setImageUrl(e.target.value)}
-                        className="w-full border border-slate-200 bg-white rounded-xl px-3 py-2 text-xs outline-none font-sans focus:ring-2 focus:ring-violet-100"
+                        className="w-full border border-slate-200 bg-white rounded-xl pl-9 pr-3.5 py-2.5 text-xs outline-none font-sans focus:ring-2 focus:ring-violet-200 focus:border-violet-400 transition-all"
                       />
+                      <Link className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                     </div>
-                  )}
+
+                    <div className="p-2.5 bg-violet-50/70 border border-violet-100 rounded-xl text-[11px] text-violet-900 flex items-start gap-2 leading-relaxed">
+                      <Link className="h-4 w-4 text-violet-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold text-violet-800">การใช้องค์ประกอบลิงก์ Google Drive:</span>
+                        <p className="text-[10px] text-violet-700 mt-0.5">
+                          ก๊อปปี้ลิงก์แชร์ไฟล์รูปภาพจาก Google Drive มาวางได้ทันที (ตั้งค่าแชร์ไฟล์เป็น <strong className="font-bold">"ทุกคนที่มีลิงก์สิทธิ์อ่าน"</strong>) ระบบจะแปลงเป็นรูปภาพแสดงผลอัตโนมัติ ช่วยให้ไฟล์ Google Sheet ไม่หนักและโหลดรวดเร็วขึ้น
+                        </p>
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Image Preview & Actions */}
                   {imageUrl && (
-                    <div className="flex items-center gap-3 p-2 bg-white rounded-xl border border-slate-150 relative">
+                    <div className="flex items-center gap-3 p-2.5 bg-white rounded-xl border border-slate-200 relative">
                       <img 
                         src={getEmbeddableImageUrl(imageUrl)} 
                         alt="Preview" 
                         referrerPolicy="no-referrer"
-                        className="w-16 h-16 object-cover rounded-lg border border-slate-200"
+                        className="w-14 h-14 object-cover rounded-lg border border-slate-200"
                         onError={(e) => {
                           (e.currentTarget as HTMLImageElement).src = 'https://placehold.co/100?text=Invalid+Image+URL';
                         }}
                       />
                       <div className="flex-1 min-w-0">
-                        <span className="text-[10px] font-bold text-slate-400 block font-mono">ATTACHED IMAGE</span>
+                        <span className="text-[10px] font-bold text-violet-600 block font-mono">ATTACHED IMAGE URL</span>
                         <p className="text-xs text-slate-700 truncate font-mono">{imageUrl}</p>
                       </div>
                       <button
                         type="button"
                         onClick={() => setImageUrl('')}
-                        className="text-slate-400 hover:text-rose-600 hover:bg-slate-100 p-1.5 rounded-lg transition-all cursor-pointer"
+                        className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-lg transition-all cursor-pointer"
                         title="ลบรูปถ่ายที่แนบ"
                       >
                         <X className="h-4 w-4" />
@@ -1288,109 +1135,55 @@ export default function MaintenanceTab({
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
                 <span className="text-[11px] font-bold text-slate-700 block border-b border-slate-200 pb-1 flex items-center gap-1.5">
                   <Camera className="h-4 w-4 text-violet-600" />
-                  แก้ไขรูปถ่ายประกอบการซ่อม (Repair Log Photo Attachment)
+                  แก้ไขรูปถ่ายประกอบการซ่อม (แนบลิงก์ Google Drive หรือ URL)
                 </span>
 
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setEditImageInputMethod('upload')}
-                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                      editImageInputMethod === 'upload' 
-                        ? 'bg-violet-600 text-white' 
-                        : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    <Upload className="h-3 w-3" />
-                    <span>อัปโหลดภาพ</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditImageInputMethod('url')}
-                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                      editImageInputMethod === 'url' 
-                        ? 'bg-violet-600 text-white' 
-                        : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    <Link className="h-3 w-3" />
-                    <span>วางลิงก์ (URL)</span>
-                  </button>
+                <div className="space-y-2">
+                  {localStorage.getItem('drive_folder_url') && (
+                    <div className="p-2.5 bg-violet-50 border border-violet-150 rounded-xl flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold text-violet-900 truncate">โฟลเดอร์รูปภาพ Google Drive กลาง</span>
+                      <a
+                        href={localStorage.getItem('drive_folder_url')!}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2.5 py-1 bg-violet-600 hover:bg-violet-700 text-white font-semibold text-[10px] rounded-lg shadow-xs flex items-center gap-1 shrink-0 transition-all cursor-pointer"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        <span>เปิด Drive</span>
+                      </a>
+                    </div>
+                  )}
+                  <div className="relative">
+                    <input
+                      type="url"
+                      placeholder="วางลิงก์รูปภาพ เช่น https://drive.google.com/file/d/..."
+                      value={editImageUrl}
+                      onChange={(e) => setEditImageUrl(e.target.value)}
+                      className="w-full border border-slate-200 bg-white rounded-xl pl-8 pr-3 py-2 text-xs outline-none focus:ring-2 focus:ring-violet-200 focus:border-violet-400 transition-all font-sans"
+                    />
+                    <Link className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                  </div>
                 </div>
 
-                {editImageInputMethod === 'upload' ? (
-                  <div className="space-y-3">
-                    <input 
-                      type="file" 
-                      id="edit-repair-image-upload" 
-                      accept="image/*" 
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleFileChange(file, true);
-                      }}
-                      className="hidden" 
-                    />
-                    <input 
-                      type="file" 
-                      id="edit-repair-image-camera" 
-                      accept="image/*" 
-                      capture="environment"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleFileChange(file, true);
-                      }}
-                      className="hidden" 
-                    />
-
-                    {isEditingUploadingImage ? (
-                      <div className="border border-dashed border-slate-200 rounded-xl p-4 bg-slate-50 flex items-center justify-center">
-                        <RefreshCw className="h-5 w-5 text-violet-600 animate-spin" />
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-3">
-                        <label 
-                          htmlFor="edit-repair-image-camera"
-                          className="border border-dashed border-slate-300 hover:border-violet-500 hover:bg-violet-50/20 rounded-xl p-3 text-center cursor-pointer flex flex-col items-center justify-center gap-1 transition-all group text-slate-600"
-                        >
-                          <Camera className="h-4 w-4 text-slate-400 group-hover:text-violet-600" />
-                          <span className="text-[11px] font-bold">ถ่ายรูปใหม่จากกล้อง</span>
-                        </label>
-                        
-                        <label 
-                          htmlFor="edit-repair-image-upload"
-                          className="border border-dashed border-slate-300 hover:border-indigo-500 hover:bg-indigo-50/20 rounded-xl p-3 text-center cursor-pointer flex flex-col items-center justify-center gap-1 transition-all group text-slate-600"
-                        >
-                          <Upload className="h-4 w-4 text-slate-400 group-hover:text-indigo-600" />
-                          <span className="text-[11px] font-bold">เลือกจากอัลบั้มรูป</span>
-                        </label>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <input
-                    type="url"
-                    placeholder="วางลิงก์รูปภาพ..."
-                    value={editImageUrl}
-                    onChange={(e) => setEditImageUrl(e.target.value)}
-                    className="w-full border border-slate-200 bg-white rounded-xl px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-violet-100"
-                  />
-                )}
-
                 {editImageUrl && (
-                  <div className="flex items-center gap-3 p-2 bg-white rounded-xl border border-slate-150">
+                  <div className="flex items-center gap-3 p-2 bg-white rounded-xl border border-slate-200">
                     <img 
                       src={getEmbeddableImageUrl(editImageUrl)} 
                       alt="Edit Preview" 
                       referrerPolicy="no-referrer"
                       className="w-12 h-12 object-cover rounded-lg border border-slate-200"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = 'https://placehold.co/100?text=Invalid+Image+URL';
+                      }}
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="text-[10px] text-slate-400 truncate font-mono">{editImageUrl}</p>
+                      <span className="text-[10px] font-bold text-violet-600 block font-mono">ATTACHED IMAGE URL</span>
+                      <p className="text-[10px] text-slate-600 truncate font-mono">{editImageUrl}</p>
                     </div>
                     <button
                       type="button"
                       onClick={() => setEditImageUrl('')}
-                      className="text-slate-400 hover:text-rose-600 p-1 rounded-lg transition-all"
+                      className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1 rounded-lg transition-all cursor-pointer"
                     >
                       <X className="h-4 w-4" />
                     </button>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AuthorizedUser, fetchAuthorizedUsers, addAuthorizedUser, removeAuthorizedUser } from '../utils/sheets';
-import { Shield, UserPlus, Trash2, Mail, User, ShieldCheck, HelpCircle, Loader2 } from 'lucide-react';
+import { Shield, UserPlus, Trash2, Mail, User, ShieldCheck, HelpCircle, Loader2, FolderPlus, ExternalLink } from 'lucide-react';
 
 interface PermissionsTabProps {
   accessToken: string;
@@ -18,6 +18,16 @@ export default function PermissionsTab({ accessToken, spreadsheetId, currentUser
   const [newEmail, setNewEmail] = useState('');
   const [newName, setNewName] = useState('');
   const [newRole, setNewRole] = useState('ช่างเทคนิค');
+
+  // Google Drive Storage Folder URL
+  const [driveFolderUrl, setDriveFolderUrl] = useState<string>(() => {
+    return localStorage.getItem('drive_folder_url') || '';
+  });
+
+  const handleSaveDriveFolder = (url: string) => {
+    setDriveFolderUrl(url);
+    localStorage.setItem('drive_folder_url', url);
+  };
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -251,6 +261,40 @@ export default function PermissionsTab({ accessToken, spreadsheetId, currentUser
               </div>
             </div>
           )}
+
+          {/* ส่วนตั้งค่า Google Drive Folder Storage สำหรับจัดเก็บรูปภาพ */}
+          <div className="mt-6 pt-6 border-t border-slate-100">
+            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2 mb-3">
+              <FolderPlus className="h-4 w-4 text-violet-600" />
+              <span>ลิงก์โฟลเดอร์ Google Drive กลาง</span>
+            </h3>
+            <p className="text-xs text-slate-500 mb-3 leading-relaxed">
+              ระบุลิงก์โฟลเดอร์ Google Drive สำหรับเก็บรูปถ่ายงานซ่อมและอะไหล่ เพื่อให้ทีมช่างคลิกเปิดโฟลเดอร์สำหรับลากวางรูปได้สะดวก
+            </p>
+            <div className="space-y-3">
+              <div className="relative">
+                <input
+                  type="url"
+                  placeholder="https://drive.google.com/drive/folders/..."
+                  value={driveFolderUrl}
+                  onChange={(e) => handleSaveDriveFolder(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-violet-500 focus:bg-white transition-all font-sans"
+                />
+                <FolderPlus className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              </div>
+              {driveFolderUrl && (
+                <a
+                  href={driveFolderUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2 bg-violet-50 hover:bg-violet-100 border border-violet-200 text-violet-700 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  <span>ทดสอบเปิดโฟลเดอร์ Google Drive</span>
+                </a>
+              )}
+            </div>
+          </div>
 
           <div className="mt-5 p-3.5 bg-amber-50 text-amber-900 border border-amber-100 rounded-xl text-xs flex items-start gap-2.5 leading-relaxed font-medium">
             <HelpCircle className="h-4.5 w-4.5 text-amber-600 shrink-0 mt-0.5" />
