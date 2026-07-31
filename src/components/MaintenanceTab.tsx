@@ -84,51 +84,78 @@ export default function MaintenanceTab({
   // Lightbox Zoom state
   const [zoomedImage, setZoomedImage] = useState<{ url: string; name: string } | null>(null);
 
-  // Helper: Image Resizer & Compressor (JPG, 400x400 max, 0.65 quality)
+  // Helper: Fast Image Resizer & Compressor (Uses ObjectURL for speed and limits base64 size <= 38,000 chars for Google Sheets cells)
   const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target?.result as string;
-        img.onload = () => {
+      const objectUrl = URL.createObjectURL(file);
+      const img = new Image();
+
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+
+        let maxDim = 320;
+        let quality = 0.55;
+
+        const processCanvas = (dim: number, q: number): string => {
           const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 400;
-          const MAX_HEIGHT = 400;
           let width = img.width;
           let height = img.height;
 
           if (width > height) {
-            if (width > MAX_WIDTH) {
-              height *= MAX_WIDTH / width;
-              width = MAX_WIDTH;
+            if (width > dim) {
+              height = Math.round(height * (dim / width));
+              width = dim;
             }
           } else {
-            if (height > MAX_HEIGHT) {
-              width *= MAX_HEIGHT / height;
-              height = MAX_HEIGHT;
+            if (height > dim) {
+              width = Math.round(width * (dim / height));
+              height = dim;
             }
           }
 
-          canvas.width = width;
-          canvas.height = height;
+          canvas.width = Math.max(10, width);
+          canvas.height = Math.max(10, height);
           const ctx = canvas.getContext('2d');
           if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height);
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.65);
-            resolve(dataUrl);
-          } else {
-            resolve(event.target?.result as string);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            return canvas.toDataURL('image/jpeg', q);
           }
+          return '';
         };
-        img.onerror = (err) => reject(err);
+
+        let dataUrl = processCanvas(maxDim, quality);
+
+        // ย่อขนาดลงเรื่อยๆ หากยังเกิน 38,000 ตัวอักษร เพื่อให้ส่ง Google Sheets API ได้ 100% โดยไม่ติดขัด
+        while (dataUrl.length > 38000 && maxDim > 100) {
+          maxDim -= 30;
+          if (quality > 0.3) quality -= 0.05;
+          dataUrl = processCanvas(maxDim, quality);
+        }
+
+        if (dataUrl) {
+          resolve(dataUrl);
+        } else {
+          reject(new Error('ไม่สามารถประมวลผลรูปภาพได้'));
+        }
       };
-      reader.onerror = (err) => reject(err);
+
+      img.onerror = (err) => {
+        URL.revokeObjectURL(objectUrl);
+        reject(err);
+      };
+
+      img.src = objectUrl;
     });
   };
 
   const handleFileChange = async (file: File, isEdit: boolean) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('กรุณาเลือกไฟล์รูปภาพเท่านั้น (เช่น JPG, PNG, WEBP)');
+      return;
+    }
     try {
       if (isEdit) {
         setIsEditingUploadingImage(true);
@@ -139,8 +166,9 @@ export default function MaintenanceTab({
         const compressed = await compressImage(file);
         setImageUrl(compressed);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error compressing image:', err);
+      alert('เกิดข้อผิดพลาดในการประมวลผลรูปภาพ กรุณาลองใหม่อีกครั้ง');
     } finally {
       if (isEdit) {
         setIsEditingUploadingImage(false);

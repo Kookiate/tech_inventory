@@ -622,13 +622,29 @@ export default function App() {
         // อัปเดตข้อมูลประวัติในแอป
         setMaintenanceLogs(prev => [result.newLog, ...prev]);
 
-        // หากมีการใช้อะไหล่และตัดยอดสำเร็จ ให้ปรับสถานะอะไหล่ในแอปทันทีเพื่อความสอดคล้อง (Consistency)
+        // หากมีการใช้อะไหล่และตัดยอดสำเร็จ ให้ปรับสถานะอะไหล่ในแอปและส่งแจ้งเตือน Telegram
         if (logData.partUsedId && logData.partQty > 0) {
+          const targetPart = result.updatedPart || parts.find(p => p.id === logData.partUsedId);
+          if (targetPart) {
+            const newQty = result.updatedPart ? result.updatedPart.quantity : Math.max(0, targetPart.quantity - logData.partQty);
+            const updatedPartObj: SparePart = { ...targetPart, quantity: newQty };
+
+            // ส่งแจ้งเตือน Telegram สำหรับการเบิกอะไหล่ในการซ่อมบำรุง
+            sendPartWithdrawAlert(
+              updatedPartObj,
+              logData.partQty,
+              logData.technician,
+              `งานซ่อมแซมเครื่องจักร: ${logData.repairDetail}`,
+              newQty,
+              logData.equipmentName
+            ).catch(err => console.error('Telegram withdrawal alert error in maintenance log:', err));
+          }
+
           setParts(prev => prev.map(p => {
             if (p.id === logData.partUsedId) {
               return {
                 ...p,
-                quantity: Math.max(0, p.quantity - logData.partQty)
+                quantity: result.updatedPart ? result.updatedPart.quantity : Math.max(0, p.quantity - logData.partQty)
               };
             }
             return p;
