@@ -798,14 +798,14 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans pb-16">
       {/* 1. Header แถบควบคุมบนสุด */}
-      <nav className="bg-slate-900 border-b-4 border-blue-500 text-white py-4 px-4 sm:px-8 sticky top-0 z-40 shadow-lg">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+      <nav className="bg-slate-900 border-b-4 border-blue-500 text-white py-3.5 px-4 sm:px-8 sticky top-0 z-40 shadow-lg w-full">
+        <div className="w-full flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 bg-blue-500 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20">
+            <div className="h-10 w-10 bg-blue-500 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0">
               <Settings className="h-5 w-5 text-slate-950 stroke-[2.2]" />
             </div>
             <div>
-              <h1 className="font-display text-lg font-bold tracking-tight uppercase">ระบบควบคุมอะไหล่และงานซ่อม (Spare Part & Repairs)</h1>
+              <h1 className="font-display text-base sm:text-lg font-bold tracking-tight uppercase">ระบบควบคุมอะไหล่และงานซ่อม (Spare Part & Repairs)</h1>
               <p className="text-xs text-blue-300 font-sans mt-0.5 flex items-center gap-1">
                 <span>เชื่อมต่อฐานข้อมูลสำเร็จ:</span>
                 <a 
@@ -821,13 +821,13 @@ export default function App() {
           </div>
 
           {/* สแกนข้อมูลผู้ใช้และปุ่มกระทำ */}
-          <div className="flex items-center gap-3 text-xs">
+          <div className="flex items-center gap-2.5 sm:gap-3 text-xs flex-wrap justify-end">
             <div className="text-right hidden sm:block">
               <p className="font-bold text-slate-200">{user?.displayName || 'ช่างเทคนิคโรงงาน'}</p>
               <p className="text-[10px] text-green-400">● เชื่อมต่อกับ Google Sheets แล้ว</p>
             </div>
 
-            <div className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center text-xs font-bold text-slate-200 uppercase">
+            <div className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center text-xs font-bold text-slate-200 uppercase shrink-0">
               {user?.displayName ? user.displayName.slice(0, 2) : 'SC'}
             </div>
             
@@ -870,19 +870,19 @@ export default function App() {
         </div>
       </nav>
 
-      {/* 2. เมนูกดเปลี่ยนแท็บสไตล์ Professional Polish */}
-      <div className="bg-white border-b border-slate-200 sticky top-[72px] sm:top-[68px] z-30 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-8">
-          <div className="flex gap-2 sm:gap-6 overflow-x-auto text-sm font-bold scrollbar-none">
+      {/* 2. เมนูกดเปลี่ยนแท็บสไตล์ Full Width Responsive */}
+      <div className="bg-white border-b border-slate-200 sticky top-[72px] sm:top-[64px] z-30 shadow-xs w-full">
+        <div className="w-full px-2 sm:px-6">
+          <div className="flex flex-wrap lg:flex-nowrap justify-start lg:justify-between gap-1 text-xs sm:text-sm font-bold">
             <button
               onClick={() => setActiveTab('transaction')}
-              className={`px-4 sm:px-6 py-4 border-b-4 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+              className={`flex-1 min-w-[130px] px-3 sm:px-4 py-3 border-b-4 flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'transaction' 
-                  ? 'text-blue-600 border-blue-600 font-bold' 
-                  : 'text-slate-500 border-transparent hover:border-slate-300 font-medium'
+                  ? 'text-blue-600 border-blue-600 font-bold bg-blue-50/40' 
+                  : 'text-slate-600 border-transparent hover:border-slate-300 hover:bg-slate-50 font-medium'
               }`}
             >
-              <ArrowRightLeft className="h-4 w-4 shrink-0" />
+              <ArrowRightLeft className="h-4 w-4 shrink-0 text-blue-500" />
               <span>เบิกและรับอะไหล่</span>
             </button>
 
@@ -891,13 +891,13 @@ export default function App() {
                 setActiveTab('inventory');
                 loadAllData(token!, spreadsheetId);
               }}
-              className={`px-4 sm:px-6 py-4 border-b-4 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+              className={`flex-1 min-w-[130px] px-3 sm:px-4 py-3 border-b-4 flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'inventory' 
-                  ? 'text-blue-600 border-blue-600 font-bold' 
-                  : 'text-slate-500 border-transparent hover:border-slate-300 font-medium'
+                  ? 'text-blue-600 border-blue-600 font-bold bg-blue-50/40' 
+                  : 'text-slate-600 border-transparent hover:border-slate-300 hover:bg-slate-50 font-medium'
               }`}
             >
-              <Layers className="h-4 w-4 shrink-0" />
+              <Layers className="h-4 w-4 shrink-0 text-indigo-500" />
               <span>เช็คยอดคงเหลือ</span>
             </button>
 
@@ -906,13 +906,13 @@ export default function App() {
                 setActiveTab('equipment');
                 loadAllData(token!, spreadsheetId);
               }}
-              className={`px-4 sm:px-6 py-4 border-b-4 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+              className={`flex-1 min-w-[130px] px-3 sm:px-4 py-3 border-b-4 flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'equipment' 
-                  ? 'text-blue-600 border-blue-600 font-bold' 
-                  : 'text-slate-500 border-transparent hover:border-slate-300 font-medium'
+                  ? 'text-blue-600 border-blue-600 font-bold bg-blue-50/40' 
+                  : 'text-slate-600 border-transparent hover:border-slate-300 hover:bg-slate-50 font-medium'
               }`}
             >
-              <Cpu className="h-4 w-4 shrink-0" />
+              <Cpu className="h-4 w-4 shrink-0 text-amber-500" />
               <span>เครื่องจักร/อุปกรณ์</span>
             </button>
 
@@ -921,13 +921,13 @@ export default function App() {
                 setActiveTab('maintenance');
                 loadAllData(token!, spreadsheetId);
               }}
-              className={`px-4 sm:px-6 py-4 border-b-4 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+              className={`flex-1 min-w-[130px] px-3 sm:px-4 py-3 border-b-4 flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'maintenance' 
-                  ? 'text-blue-600 border-blue-600 font-bold' 
-                  : 'text-slate-500 border-transparent hover:border-slate-300 font-medium'
+                  ? 'text-blue-600 border-blue-600 font-bold bg-blue-50/40' 
+                  : 'text-slate-600 border-transparent hover:border-slate-300 hover:bg-slate-50 font-medium'
               }`}
             >
-              <Wrench className="h-4 w-4 shrink-0" />
+              <Wrench className="h-4 w-4 shrink-0 text-violet-500" />
               <span>งานซ่อมบำรุง</span>
             </button>
 
@@ -936,45 +936,45 @@ export default function App() {
                 setActiveTab('dashboard');
                 loadAllData(token!, spreadsheetId);
               }}
-              className={`px-4 sm:px-6 py-4 border-b-4 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+              className={`flex-1 min-w-[130px] px-3 sm:px-4 py-3 border-b-4 flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'dashboard' 
-                  ? 'text-blue-600 border-blue-600 font-bold' 
-                  : 'text-slate-500 border-transparent hover:border-slate-300 font-medium'
+                  ? 'text-blue-600 border-blue-600 font-bold bg-blue-50/40' 
+                  : 'text-slate-600 border-transparent hover:border-slate-300 hover:bg-slate-50 font-medium'
               }`}
             >
-              <BarChart3 className="h-4 w-4 shrink-0" />
+              <BarChart3 className="h-4 w-4 shrink-0 text-emerald-500" />
               <span>แดชบอร์ดสรุปยอด</span>
             </button>
 
             <button
               onClick={() => setActiveTab('appsscript')}
-              className={`px-4 sm:px-6 py-4 border-b-4 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+              className={`flex-1 min-w-[130px] px-3 sm:px-4 py-3 border-b-4 flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'appsscript' 
-                  ? 'text-blue-600 border-blue-600 font-bold' 
-                  : 'text-slate-500 border-transparent hover:border-slate-300 font-medium'
+                  ? 'text-blue-600 border-blue-600 font-bold bg-blue-50/40' 
+                  : 'text-slate-600 border-transparent hover:border-slate-300 hover:bg-slate-50 font-medium'
               }`}
             >
-              <Terminal className="h-4 w-4 shrink-0" />
+              <Terminal className="h-4 w-4 shrink-0 text-slate-500" />
               <span>คู่มือติดตั้ง GAS</span>
             </button>
 
             <button
               onClick={() => setActiveTab('permissions')}
-              className={`px-4 sm:px-6 py-4 border-b-4 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+              className={`flex-1 min-w-[130px] px-3 sm:px-4 py-3 border-b-4 flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'permissions' 
-                  ? 'text-blue-600 border-blue-600 font-bold' 
-                  : 'text-slate-500 border-transparent hover:border-slate-300 font-medium'
+                  ? 'text-blue-600 border-blue-600 font-bold bg-blue-50/40' 
+                  : 'text-slate-600 border-transparent hover:border-slate-300 hover:bg-slate-50 font-medium'
               }`}
             >
-              <Shield className="h-4 w-4 shrink-0 text-indigo-500" />
+              <Shield className="h-4 w-4 shrink-0 text-rose-500" />
               <span>จัดการสิทธิ์เข้าใช้งาน</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* 3. ส่วนเนื้อหาการประมวลผล */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 flex-1 w-full">
+      {/* 3. ส่วนเนื้อหาการประมวลผล Full Width */}
+      <main className="w-full px-4 sm:px-6 md:px-8 py-6 flex-1">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
