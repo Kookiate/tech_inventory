@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { SparePart, Transaction, Equipment, MaintenanceLog } from '../types';
 import { 
   ResponsiveContainer, 
@@ -24,8 +24,16 @@ import {
   Sparkles,
   AlertOctagon,
   ArrowRight,
-  Banknote
+  Banknote,
+  Calendar,
+  FileText,
+  Printer,
+  ChevronRight,
+  Filter,
+  Search
 } from 'lucide-react';
+import { extractMonthKey, formatThaiMonth } from '../utils/dateUtils';
+import EquipmentHistoryModal from './EquipmentHistoryModal';
 
 interface DashboardTabProps {
   parts: SparePart[];
@@ -43,6 +51,15 @@ export default function DashboardTab({
   maintenanceLogs 
 }: DashboardTabProps) {
   
+  // State for Maintenance Dashboard Filters
+  const [selectedMonth, setSelectedMonth] = useState<string>('ALL');
+  const [selectedEqFilter, setSelectedEqFilter] = useState<string>('ALL');
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('ALL');
+  const [searchRepairKeyword, setSearchRepairKeyword] = useState<string>('');
+  
+  // State for Equipment History Modal
+  const [historyModalEqId, setHistoryModalEqId] = useState<string | null>(null);
+
   // ==================== 1. คำนวณสรุปตัวเลขคลังอะไหล่สำรอง ====================
   const totalItemTypes = parts.length;
   const totalPieces = parts.reduce((acc, curr) => acc + curr.quantity, 0);
@@ -81,22 +98,10 @@ export default function DashboardTab({
     'อุปกรณ์ทั่วไป': '#d97706' // Amber-600
   };
 
-  // หลากหลายสีสันที่สวยงาม สำหรับสัดส่วนของหมวดหมู่และรายการที่เพิ่มใหม่
+  // หลากหลายสีสันสำหรับสัดส่วนของหมวดหมู่
   const DIVERSE_COLORS = [
-    '#2563eb', // Blue-600
-    '#dc2626', // Red-600
-    '#d97706', // Amber-600
-    '#10b981', // Emerald-500
-    '#8b5cf6', // Violet-500
-    '#ec4899', // Pink-500
-    '#06b6d4', // Cyan-500
-    '#f43f5e', // Rose-500
-    '#a855f7', // Purple-500
-    '#14b8a6', // Teal-500
-    '#f97316', // Orange-500
-    '#6366f1', // Indigo-500
-    '#d946ef', // Fuchsia-500
-    '#84cc16'  // Lime-500
+    '#2563eb', '#dc2626', '#d97706', '#10b981', '#8b5cf6', 
+    '#ec4899', '#06b6d4', '#f43f5e', '#a855f7', '#14b8a6'
   ];
 
   const getPieCellColor = (name: string, index: number) => {
@@ -106,59 +111,216 @@ export default function DashboardTab({
     return DIVERSE_COLORS[index % DIVERSE_COLORS.length];
   };
 
-  // ==================== 2. คำนวณสรุปข้อมูลระบบซ่อมและเครื่องจักร ====================
-  const totalMachines = equipments.length;
-  const totalRepairLogs = maintenanceLogs.length;
-  const totalRepairExpense = maintenanceLogs.reduce((sum, log) => sum + log.totalCost, 0);
+  // ==================== 2. กรองข้อมูลตามเดือนสำหรับประวัติการซ่อม ====================
+  const availableMonths = Array.from(
+    new Set(
+      maintenanceLogs
+        .map(log => extractMonthKey(log.date))
+        .filter(Boolean)
+    )
+  ).sort((a, b) => b.localeCompare(a));
 
-  // คำนวณอัตราส่วนค่าใช้จ่ายต่อตัวเครื่องจักร เพื่อดู "ความคุ้มค่าของการซ่อมแซม"
-  const machineAnalysisData = equipments.map(eq => {
-    const logs = maintenanceLogs.filter(log => log.equipmentId === eq.id);
-    const accumulatedCost = logs.reduce((sum, log) => sum + log.totalCost, 0);
-    const repairCount = logs.length;
-    
-    // อัตราส่วนความคุ้มค่า (%) = (ค่าซ่อมสะสม / ราคาเครื่องแรกซื้อ) * 100
-    const ratio = eq.purchasePrice > 0 ? Math.round((accumulatedCost / eq.purchasePrice) * 100) : 0;
-    
-    // การประเมิน
-    let rating = 'คุ้มค่าดีเยี่ยม';
-    let ratingColor = 'text-emerald-600 bg-emerald-50 border-emerald-200';
-    let severity = 1; // 1 = low, 2 = warning, 3 = critical
-
-    if (ratio > 80) {
-      rating = 'ไม่คุ้มค่าซ่อม (ควรเปลี่ยนเครื่องใหม่)';
-      ratingColor = 'text-rose-600 bg-rose-50 border-rose-200 font-bold';
-      severity = 3;
-    } else if (ratio > 50) {
-      rating = 'ซ่อมสะสมเริ่มสูง (ควรเฝ้าระวัง)';
-      ratingColor = 'text-orange-600 bg-orange-50 border-orange-200';
-      severity = 2;
-    } else if (ratio > 20) {
-      rating = 'ปานกลาง (ปกติ)';
-      ratingColor = 'text-amber-600 bg-amber-50 border-amber-200';
-      severity = 1;
+  // 1) Filter logs by Month, Equipment ID, and Search Keyword
+  const activeLogs = maintenanceLogs.filter(log => {
+    // Month filter
+    if (selectedMonth !== 'ALL' && extractMonthKey(log.date) !== selectedMonth) {
+      return false;
     }
-
-    return {
-      id: eq.id,
-      name: eq.name,
-      purchasePrice: eq.purchasePrice,
-      maxBudget: eq.maxRepairBudget,
-      accumulatedCost,
-      repairCount,
-      ratio,
-      rating,
-      ratingColor,
-      severity
-    };
+    // Equipment filter
+    if (selectedEqFilter !== 'ALL' && log.equipmentId !== selectedEqFilter) {
+      return false;
+    }
+    // Search keyword
+    if (searchRepairKeyword.trim()) {
+      const q = searchRepairKeyword.toLowerCase();
+      const matchTech = (log.technician || '').toLowerCase().includes(q);
+      const matchDetail = (log.repairDetail || '').toLowerCase().includes(q);
+      const matchEq = (log.equipmentId || '').toLowerCase().includes(q);
+      const matchPart = (log.partUsedId || '').toLowerCase().includes(q);
+      if (!matchTech && !matchDetail && !matchEq && !matchPart) {
+        return false;
+      }
+    }
+    return true;
   });
 
-  // เรียงลำดับตามความเสี่ยงสิ้นเปลืองสูงสุด (Ratio สูงสุด) เพื่อนำเสนอเครื่องจักรวิกฤตบน Dashboard
+  const totalMachines = equipments.length;
+  const totalRepairLogs = activeLogs.length;
+  const totalRepairExpense = activeLogs.reduce((sum, log) => sum + log.totalCost, 0);
+
+  // คำนวณอัตราส่วนค่าใช้จ่ายต่อตัวเครื่องจักร ตามช่วงเดือนและตัวกรองที่เลือก
+  const machineAnalysisData = equipments
+    .filter(eq => selectedEqFilter === 'ALL' || eq.id === selectedEqFilter)
+    .map(eq => {
+      const logs = activeLogs.filter(log => log.equipmentId === eq.id);
+      const accumulatedCost = logs.reduce((sum, log) => sum + log.totalCost, 0);
+      const repairCount = logs.length;
+      
+      // อัตราส่วนความคุ้มค่า (%) = (ค่าซ่อมสะสม / ราคาเครื่องแรกซื้อ) * 100
+      const ratio = eq.purchasePrice > 0 ? Math.round((accumulatedCost / eq.purchasePrice) * 100) : 0;
+      
+      let rating = 'คุ้มค่าดีเยี่ยม';
+      let ratingColor = 'text-emerald-600 bg-emerald-50 border-emerald-200';
+      let severity = 1;
+
+      if (ratio > 80) {
+        rating = 'ไม่คุ้มค่าซ่อม (ควรเปลี่ยนเครื่องใหม่)';
+        ratingColor = 'text-rose-600 bg-rose-50 border-rose-200 font-bold';
+        severity = 3;
+      } else if (ratio > 50) {
+        rating = 'ซ่อมสะสมเริ่มสูง (ควรเฝ้าระวัง)';
+        ratingColor = 'text-orange-600 bg-orange-50 border-orange-200';
+        severity = 2;
+      } else if (ratio > 20) {
+        rating = 'ปานกลาง (ปกติ)';
+        ratingColor = 'text-amber-600 bg-amber-50 border-amber-200';
+        severity = 1;
+      }
+
+      return {
+        id: eq.id,
+        name: eq.name,
+        location: eq.location,
+        purchasePrice: eq.purchasePrice,
+        maxBudget: eq.maxRepairBudget,
+        accumulatedCost,
+        repairCount,
+        ratio,
+        rating,
+        ratingColor,
+        severity
+      };
+    })
+    .filter(m => {
+      if (selectedStatusFilter === 'CRITICAL') return m.ratio > 80;
+      if (selectedStatusFilter === 'WARNING') return m.ratio > 50 && m.ratio <= 80;
+      if (selectedStatusFilter === 'NORMAL') return m.ratio <= 50;
+      return true;
+    });
+
   const sortedMachineAnalysis = [...machineAnalysisData].sort((a, b) => b.ratio - a.ratio);
   const criticalMachinesCount = machineAnalysisData.filter(m => m.ratio > 80).length;
 
+  const isAnyFilterActive = selectedMonth !== 'ALL' || selectedEqFilter !== 'ALL' || selectedStatusFilter !== 'ALL' || searchRepairKeyword.trim() !== '';
+
+  const handleResetFilters = () => {
+    setSelectedMonth('ALL');
+    setSelectedEqFilter('ALL');
+    setSelectedStatusFilter('ALL');
+    setSearchRepairKeyword('');
+  };
+
   return (
     <div className="space-y-6">
+      
+      {/* ==================== แถบ Filter งานซ่อมบำรุงและวิเคราะห์เครื่องจักร (Maintenance Filter Bar) ==================== */}
+      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-md space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center border border-indigo-100 shrink-0">
+              <Filter className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-slate-900 font-display flex items-center gap-2">
+                ตัวกรองระบบงานซ่อมบำรุง & วิเคราะห์สินทรัพย์ (Maintenance Filter)
+              </h3>
+              <p className="text-xs text-slate-500 font-sans">
+                กรองข้อมูลรายงานตามช่วงเวลา รหัสเครื่องจักร สถานะความเสี่ยง หรือค้นหาช่างซ่อม
+              </p>
+            </div>
+          </div>
+
+          {isAnyFilterActive && (
+            <button
+              onClick={handleResetFilters}
+              className="text-xs font-bold text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 px-3.5 py-1.5 rounded-xl border border-rose-200 transition-all self-end md:self-auto cursor-pointer flex items-center gap-1.5"
+            >
+              <span>ล้างตัวกรองทั้งหมด</span>
+            </button>
+          )}
+        </div>
+
+        {/* Filter Controls Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          
+          {/* 1. Filter Month */}
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-700 flex items-center gap-1 font-sans">
+              <Calendar className="h-3.5 w-3.5 text-indigo-500" />
+              กรองช่วงเดือน:
+            </label>
+            <select
+              value={selectedMonth}
+              onChange={e => setSelectedMonth(e.target.value)}
+              className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none shadow-2xs font-sans"
+            >
+              <option value="ALL">ทุกช่วงเวลา (All Time)</option>
+              {availableMonths.map(m => (
+                <option key={m} value={m}>
+                  {formatThaiMonth(m)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 2. Filter Equipment */}
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-700 flex items-center gap-1 font-sans">
+              <Cpu className="h-3.5 w-3.5 text-blue-500" />
+              กรองเครื่องจักร:
+            </label>
+            <select
+              value={selectedEqFilter}
+              onChange={e => setSelectedEqFilter(e.target.value)}
+              className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none shadow-2xs font-sans truncate"
+            >
+              <option value="ALL">เครื่องจักรทั้งหมด ({equipments.length} เครื่อง)</option>
+              {equipments.map(eq => (
+                <option key={eq.id} value={eq.id}>
+                  {eq.id} - {eq.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 3. Filter Status */}
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-700 flex items-center gap-1 font-sans">
+              <AlertOctagon className="h-3.5 w-3.5 text-amber-500" />
+              สถานะความคุ้มค่าซ่อม:
+            </label>
+            <select
+              value={selectedStatusFilter}
+              onChange={e => setSelectedStatusFilter(e.target.value)}
+              className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none shadow-2xs font-sans"
+            >
+              <option value="ALL">ทุกระดับความคุ้มค่า</option>
+              <option value="CRITICAL">🔴 วิกฤต - ไม่คุ้มซ่อม (&gt;80%)</option>
+              <option value="WARNING">🟠 เฝ้าระวัง - ค่าซ่อมสูง (&gt;50%)</option>
+              <option value="NORMAL">🟢 ปกติ/คุ้มค่าดี (&le;50%)</option>
+            </select>
+          </div>
+
+          {/* 4. Search Keyword */}
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-700 flex items-center gap-1 font-sans">
+              <Search className="h-3.5 w-3.5 text-slate-500" />
+              ค้นหาช่าง / อาการเสีย:
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                value={searchRepairKeyword}
+                onChange={e => setSearchRepairKeyword(e.target.value)}
+                placeholder="ระบุชื่อช่าง, อาการ, รหัส..."
+                className="w-full border border-slate-300 rounded-xl pl-8 pr-3 py-2 text-xs font-bold text-slate-800 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none shadow-2xs font-sans placeholder:font-normal placeholder:text-slate-400"
+              />
+              <Search className="h-3.5 w-3.5 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none" />
+            </div>
+          </div>
+
+        </div>
+      </div>
       
       {/* ==================== แถวสถิติ Bento Grid: อะไหล่ & เครื่องจักรซ่อมแซม ==================== */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -303,10 +465,20 @@ export default function DashboardTab({
                 sortedMachineAnalysis.map(m => (
                   <div key={m.id} className="border border-slate-100 rounded-xl p-3 bg-slate-50/50 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="font-mono text-xs font-bold text-blue-600">{m.id}</span>
-                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${m.ratingColor}`}>
-                        {m.ratio}%
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-xs font-bold text-blue-600">{m.id}</span>
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${m.ratingColor}`}>
+                          {m.ratio}%
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => setHistoryModalEqId(m.id)}
+                        className="text-[10px] font-bold text-blue-600 hover:text-blue-800 hover:bg-blue-100 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-200 flex items-center gap-1 transition-all cursor-pointer"
+                        title="ดูประวัติการซ่อมและพิมพ์รายงาน PDF"
+                      >
+                        <FileText className="h-3 w-3 text-blue-600" />
+                        <span>ประวัติ & PDF</span>
+                      </button>
                     </div>
                     <div className="flex justify-between items-center">
                       <h4 className="font-bold text-slate-800 text-xs truncate max-w-[150px]">{m.name}</h4>
@@ -506,6 +678,18 @@ export default function DashboardTab({
           </table>
         </div>
       </div>
+
+      {/* Modal ดูประวัติการซ่อมและออก PDF รายเครื่องมือ */}
+      {historyModalEqId && (
+        <EquipmentHistoryModal
+          isOpen={!!historyModalEqId}
+          onClose={() => setHistoryModalEqId(null)}
+          initialEquipmentId={historyModalEqId}
+          equipments={equipments}
+          maintenanceLogs={maintenanceLogs}
+          parts={parts}
+        />
+      )}
     </div>
   );
 }

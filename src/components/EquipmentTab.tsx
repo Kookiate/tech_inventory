@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
-import { Equipment } from '../types';
-import { PenTool, Plus, Search, Calendar, DollarSign, ShieldAlert, Cpu } from 'lucide-react';
+import { Equipment, MaintenanceLog, SparePart } from '../types';
+import { PenTool, Plus, Search, Calendar, DollarSign, ShieldAlert, Cpu, FileText, Printer } from 'lucide-react';
+import EquipmentHistoryModal from './EquipmentHistoryModal';
 
 interface EquipmentTabProps {
   equipments: Equipment[];
+  maintenanceLogs?: MaintenanceLog[];
+  parts?: SparePart[];
   onAddEquipment: (eq: {
     id: string;
     name: string;
@@ -23,9 +26,17 @@ interface EquipmentTabProps {
   isSubmitting: boolean;
 }
 
-export default function EquipmentTab({ equipments, onAddEquipment, onUpdateEquipment, isSubmitting }: EquipmentTabProps) {
+export default function EquipmentTab({ 
+  equipments, 
+  maintenanceLogs = [], 
+  parts = [], 
+  onAddEquipment, 
+  onUpdateEquipment, 
+  isSubmitting 
+}: EquipmentTabProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [historyModalEqId, setHistoryModalEqId] = useState<string | null>(null);
 
   // Form states
   const [id, setId] = useState('');
@@ -411,13 +422,23 @@ export default function EquipmentTab({ equipments, onAddEquipment, onUpdateEquip
                         {eq.purchaseDate}
                       </td>
                       <td className="py-3.5 px-4 text-center align-middle whitespace-nowrap">
-                        <button
-                          onClick={() => startEdit(eq)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 text-slate-600 rounded-lg text-[11px] font-semibold border border-slate-200 hover:border-blue-200 transition-all cursor-pointer"
-                        >
-                          <PenTool className="h-3.5 w-3.5" />
-                          แก้ไข
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => setHistoryModalEqId(eq.id)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-[11px] font-bold border border-blue-200 transition-all cursor-pointer shadow-2xs"
+                            title="ดูประวัติการซ่อมบำรุง และ พิมพ์รายงาน PDF"
+                          >
+                            <FileText className="h-3.5 w-3.5 text-blue-600" />
+                            <span>ประวัติซ่อม & PDF</span>
+                          </button>
+                          <button
+                            onClick={() => startEdit(eq)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-semibold border border-slate-200 transition-all cursor-pointer"
+                          >
+                            <PenTool className="h-3.5 w-3.5" />
+                            แก้ไข
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -427,6 +448,18 @@ export default function EquipmentTab({ equipments, onAddEquipment, onUpdateEquip
           </table>
         </div>
       </div>
+
+      {/* Modal ดูประวัติการซ่อมและออก PDF รายเครื่องมือ */}
+      {historyModalEqId && (
+        <EquipmentHistoryModal
+          isOpen={!!historyModalEqId}
+          onClose={() => setHistoryModalEqId(null)}
+          initialEquipmentId={historyModalEqId}
+          equipments={equipments}
+          maintenanceLogs={maintenanceLogs}
+          parts={parts}
+        />
+      )}
     </div>
   );
 }

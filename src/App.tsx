@@ -1009,6 +1009,8 @@ export default function App() {
             {activeTab === 'equipment' && (
               <EquipmentTab 
                 equipments={equipments}
+                maintenanceLogs={maintenanceLogs}
+                parts={parts}
                 onAddEquipment={handleAddNewEquipment}
                 onUpdateEquipment={handleUpdateEquipment}
                 isSubmitting={isSubmittingEq}
