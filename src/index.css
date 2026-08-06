@@ -68,7 +68,7 @@
     position: relative !important;
   }
 
-  body:not(.printing-report) body * {
+  body:not(.printing-report) * {
     visibility: hidden !important;
   }
 
@@ -102,26 +102,25 @@
   /* ================= A4 Report PDF Print ================= */
   body.printing-report {
     width: 100% !important;
-    height: auto !important;
-    max-width: 210mm !important;
-    margin: 0 auto !important;
+    height: 100% !important;
+    margin: 0 !important;
     padding: 0 !important;
     overflow: hidden !important;
-    background: white !important;
-    color: black !important;
+    background: #ffffff !important;
+    color: #000000 !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
   body.printing-report #root {
     width: 100% !important;
-    height: auto !important;
-    max-width: none !important;
-    max-height: none !important;
-    position: static !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
   }
 
-  body.printing-report body * {
+  body.printing-report * {
     visibility: hidden !important;
   }
 
@@ -131,18 +130,19 @@
   }
 
   body.printing-report #report-print-section {
-    position: absolute !important;
+    position: fixed !important;
     left: 0 !important;
     top: 0 !important;
-    width: 100% !important;
-    max-width: 210mm !important;
-    height: 285mm !important;
-    max-height: 285mm !important;
-    overflow: hidden !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    margin: 0 !important;
+    padding: 8mm !important;
+    box-sizing: border-box !important;
     display: block !important;
-    background: white !important;
-    color: black !important;
-    z-index: 999999 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    z-index: 9999999 !important;
+    overflow: hidden !important;
     page-break-after: avoid !important;
     page-break-before: avoid !important;
     break-after: avoid !important;
