@@ -101,11 +101,12 @@
 
   /* ================= A4 Report PDF Print ================= */
   body.printing-report {
-    width: auto !important;
+    width: 100% !important;
     height: auto !important;
-    margin: 0 !important;
+    max-width: 210mm !important;
+    margin: 0 auto !important;
     padding: 0 !important;
-    overflow: visible !important;
+    overflow: hidden !important;
     background: white !important;
     color: black !important;
     -webkit-print-color-adjust: exact;
@@ -113,7 +114,7 @@
   }
 
   body.printing-report #root {
-    width: auto !important;
+    width: 100% !important;
     height: auto !important;
     max-width: none !important;
     max-height: none !important;
@@ -134,10 +135,18 @@
     left: 0 !important;
     top: 0 !important;
     width: 100% !important;
+    max-width: 210mm !important;
+    height: 285mm !important;
+    max-height: 285mm !important;
+    overflow: hidden !important;
     display: block !important;
     background: white !important;
     color: black !important;
     z-index: 999999 !important;
+    page-break-after: avoid !important;
+    page-break-before: avoid !important;
+    break-after: avoid !important;
+    break-before: avoid !important;
   }
 }
 

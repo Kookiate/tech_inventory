@@ -469,123 +469,133 @@ export default function EquipmentHistoryModal({
       )}
 
       {/* ========================================================================= */}
-      {/* 📄 โครงสร้างสำหรับสั่งพิมพ์เป็นรายงาน PDF A4 (Print-only view for PDF Export) */}
+      {/* 📄 โครงสร้างสำหรับสั่งพิมพ์เป็นรายงาน PDF A4 ขาวดำ (Print-only B&W A4 Report) */}
       {/* ========================================================================= */}
       <div id="report-print-section" className="hidden">
-        <div style={{ padding: '20px', fontFamily: "'Sarabun', 'Mitr', sans-serif", color: '#0f172a' }}>
+        <div style={{ width: '190mm', margin: '0 auto', padding: '12px 10px', fontFamily: "'Sarabun', 'Mitr', sans-serif", color: '#000000', backgroundColor: '#ffffff', boxSizing: 'border-box' }}>
           
           {/* Header โรงงาน */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '3px solid #2563eb', paddingBottom: '12px', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '2px solid #000000', paddingBottom: '6px', marginBottom: '10px' }}>
             <div>
-              <h1 style={{ fontSize: '20px', fontWeight: 'bold', margin: 0, color: '#0f172a' }}>
-                โรงงานอุตสาหกรรม - ใบรายงานประวัติการซ่อมบำรุงและวิเคราะห์มูลค่าเครื่องจักร
+              <h1 style={{ fontSize: '15px', fontWeight: 'bold', margin: 0, color: '#000000', letterSpacing: '-0.2px' }}>
+                ใบรายงานประวัติการซ่อมบำรุงและวิเคราะห์มูลค่าเครื่องจักร (A4)
               </h1>
-              <p style={{ fontSize: '12px', color: '#475569', margin: '4px 0 0 0' }}>
-                Equipment Maintenance & Asset Cost Analysis Official Report
+              <p style={{ fontSize: '9.5px', color: '#333333', margin: '2px 0 0 0' }}>
+                Equipment Maintenance & Asset Cost Analysis Summary Report
               </p>
             </div>
-            <div style={{ textAlign: 'right', fontSize: '10px', color: '#64748b' }}>
+            <div style={{ textAlign: 'right', fontSize: '9px', color: '#000000' }}>
               <p style={{ margin: 0 }}>วันที่ออกรายงาน: <strong>{new Date().toLocaleDateString('th-TH')}</strong></p>
               <p style={{ margin: '2px 0 0 0' }}>ระบบควบคุมอะไหล่และงานซ่อม (Spare Part System)</p>
             </div>
           </div>
 
-          {/* ข้อมูลจำเพาะเครื่องจักร */}
-          <div style={{ backgroundColor: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '12px', marginBottom: '16px' }}>
-            <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse' }}>
+          {/* ข้อมูลจำเพาะเครื่องจักร (B&W Border Grid) */}
+          <div style={{ border: '1.5px solid #000000', padding: '8px', marginBottom: '10px', backgroundColor: '#ffffff' }}>
+            <table style={{ width: '100%', fontSize: '10px', borderCollapse: 'collapse', color: '#000000' }}>
               <tbody>
                 <tr>
-                  <td style={{ padding: '4px 8px', fontWeight: 'bold', color: '#334155', width: '20%' }}>รหัสเครื่องจักร:</td>
-                  <td style={{ padding: '4px 8px', fontWeight: 'bold', color: '#2563eb', fontFamily: 'monospace' }}>{currentEquipment.id}</td>
-                  <td style={{ padding: '4px 8px', fontWeight: 'bold', color: '#334155', width: '20%' }}>ชื่อเครื่องจักร:</td>
-                  <td style={{ padding: '4px 8px', fontWeight: 'bold', color: '#0f172a' }}>{currentEquipment.name}</td>
+                  <td style={{ padding: '3px 4px', fontWeight: 'bold', width: '18%' }}>รหัสเครื่องจักร:</td>
+                  <td style={{ padding: '3px 4px', fontWeight: 'bold', fontFamily: 'monospace' }}>{currentEquipment.id}</td>
+                  <td style={{ padding: '3px 4px', fontWeight: 'bold', width: '18%' }}>ชื่อเครื่องจักร:</td>
+                  <td style={{ padding: '3px 4px', fontWeight: 'bold' }}>{currentEquipment.name}</td>
                 </tr>
                 <tr>
-                  <td style={{ padding: '4px 8px', fontWeight: 'bold', color: '#334155' }}>ไลน์ผลิต / พิกัด:</td>
-                  <td style={{ padding: '4px 8px' }}>{currentEquipment.location}</td>
-                  <td style={{ padding: '4px 8px', fontWeight: 'bold', color: '#334155' }}>วันที่เริ่มใช้งาน:</td>
-                  <td style={{ padding: '4px 8px' }}>{formatThaiDate(currentEquipment.purchaseDate)}</td>
+                  <td style={{ padding: '3px 4px', fontWeight: 'bold' }}>ไลน์ผลิต / พิกัด:</td>
+                  <td style={{ padding: '3px 4px' }}>{currentEquipment.location}</td>
+                  <td style={{ padding: '3px 4px', fontWeight: 'bold' }}>วันที่เริ่มใช้งาน:</td>
+                  <td style={{ padding: '3px 4px' }}>{formatThaiDate(currentEquipment.purchaseDate)}</td>
                 </tr>
                 <tr>
-                  <td style={{ padding: '4px 8px', fontWeight: 'bold', color: '#334155' }}>ราคาซื้อแรกเริ่ม:</td>
-                  <td style={{ padding: '4px 8px', fontFamily: 'monospace', fontWeight: 'bold' }}>฿{purchasePrice.toLocaleString()}</td>
-                  <td style={{ padding: '4px 8px', fontWeight: 'bold', color: '#334155' }}>งบซ่อมวิกฤตสูงสุด:</td>
-                  <td style={{ padding: '4px 8px', fontFamily: 'monospace', fontWeight: 'bold', color: '#dc2626' }}>฿{maxBudget.toLocaleString()}</td>
+                  <td style={{ padding: '3px 4px', fontWeight: 'bold' }}>ราคาซื้อแรกเริ่ม:</td>
+                  <td style={{ padding: '3px 4px', fontFamily: 'monospace', fontWeight: 'bold' }}>฿{purchasePrice.toLocaleString()}</td>
+                  <td style={{ padding: '3px 4px', fontWeight: 'bold' }}>งบซ่อมวิกฤต (Max):</td>
+                  <td style={{ padding: '3px 4px', fontFamily: 'monospace', fontWeight: 'bold' }}>฿{maxBudget.toLocaleString()}</td>
                 </tr>
                 <tr>
-                  <td style={{ padding: '4px 8px', fontWeight: 'bold', color: '#334155' }}>รวมค่าซ่อมสะสม:</td>
-                  <td style={{ padding: '4px 8px', fontFamily: 'monospace', fontWeight: 'bold', color: '#d97706' }}>฿{totalAccumulatedCost.toLocaleString()} ({ratio}%)</td>
-                  <td style={{ padding: '4px 8px', fontWeight: 'bold', color: '#334155' }}>สถานะความคุ้มค่า:</td>
-                  <td style={{ padding: '4px 8px', fontWeight: 'bold' }}>{statusBadge.text}</td>
+                  <td style={{ padding: '3px 4px', fontWeight: 'bold' }}>รวมค่าซ่อมสะสม:</td>
+                  <td style={{ padding: '3px 4px', fontFamily: 'monospace', fontWeight: 'bold' }}>฿{totalAccumulatedCost.toLocaleString()} ({ratio}%)</td>
+                  <td style={{ padding: '3px 4px', fontWeight: 'bold' }}>สถานะประเมิน:</td>
+                  <td style={{ padding: '3px 4px', fontWeight: 'bold' }}>
+                    [ {statusBadge.text.replace(/^[🔴🟢🟠🟡]\s*/, '')} ]
+                  </td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          {/* ตารางประวัติการซ่อมบำรุง */}
-          <div style={{ marginBottom: '16px' }}>
-            <h3 style={{ fontSize: '14px', fontWeight: 'bold', margin: '0 0 8px 0', color: '#0f172a' }}>
-              รายการประวัติการซ่อมบำรุง ({eqLogs.length} รายการ)
-            </h3>
-            <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', border: '1px solid #cbd5e1' }}>
+          {/* ตารางประวัติการซ่อมบำรุง (B&W High Contrast Table) */}
+          <div style={{ marginBottom: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <h3 style={{ fontSize: '11px', fontWeight: 'bold', margin: 0, color: '#000000' }}>
+                รายการประวัติการซ่อมบำรุง ({eqLogs.length} รายการ)
+              </h3>
+              {selectedMonthFilter !== 'ALL' && (
+                <span style={{ fontSize: '9px', fontWeight: 'bold', border: '1px solid #000000', padding: '1px 6px' }}>
+                  เดือน: {formatThaiMonth(selectedMonthFilter)}
+                </span>
+              )}
+            </div>
+
+            <table style={{ width: '100%', fontSize: '9.5px', borderCollapse: 'collapse', border: '1.5px solid #000000', color: '#000000' }}>
               <thead>
-                <tr style={{ backgroundColor: '#e2e8f0', color: '#1e293b', fontWeight: 'bold' }}>
-                  <th style={{ border: '1px solid #cbd5e1', padding: '6px', textAlign: 'center', width: '30px' }}>#</th>
-                  <th style={{ border: '1px solid #cbd5e1', padding: '6px', textAlign: 'left', width: '80px' }}>วันที่ซ่อม</th>
-                  <th style={{ border: '1px solid #cbd5e1', padding: '6px', textAlign: 'left' }}>อาการเสียและแนวทางแก้ไข</th>
-                  <th style={{ border: '1px solid #cbd5e1', padding: '6px', textAlign: 'left', width: '120px' }}>อะไหล่ที่ใช้</th>
-                  <th style={{ border: '1px solid #cbd5e1', padding: '6px', textAlign: 'right', width: '70px' }}>ค่าอะไหล่</th>
-                  <th style={{ border: '1px solid #cbd5e1', padding: '6px', textAlign: 'right', width: '70px' }}>ค่าบริการ</th>
-                  <th style={{ border: '1px solid #cbd5e1', padding: '6px', textAlign: 'right', width: '80px' }}>รวม (บาท)</th>
-                  <th style={{ border: '1px solid #cbd5e1', padding: '6px', textAlign: 'left', width: '80px' }}>ช่างรับผิดชอบ</th>
+                <tr style={{ backgroundColor: '#f0f0f0', color: '#000000', fontWeight: 'bold', borderBottom: '1.5px solid #000000' }}>
+                  <th style={{ border: '1px solid #000000', padding: '4px 3px', textAlign: 'center', width: '24px' }}>#</th>
+                  <th style={{ border: '1px solid #000000', padding: '4px 3px', textAlign: 'left', width: '65px' }}>วันที่ซ่อม</th>
+                  <th style={{ border: '1px solid #000000', padding: '4px 4px', textAlign: 'left' }}>อาการเสียและแนวทางแก้ไข</th>
+                  <th style={{ border: '1px solid #000000', padding: '4px 4px', textAlign: 'left', width: '110px' }}>อะไหล่ที่ใช้</th>
+                  <th style={{ border: '1px solid #000000', padding: '4px 4px', textAlign: 'right', width: '55px' }}>ค่าอะไหล่</th>
+                  <th style={{ border: '1px solid #000000', padding: '4px 4px', textAlign: 'right', width: '55px' }}>ค่าบริการ</th>
+                  <th style={{ border: '1px solid #000000', padding: '4px 4px', textAlign: 'right', width: '65px' }}>รวม (บาท)</th>
+                  <th style={{ border: '1px solid #000000', padding: '4px 4px', textAlign: 'left', width: '70px' }}>ช่างซ่อม</th>
                 </tr>
               </thead>
               <tbody>
                 {eqLogs.length === 0 ? (
                   <tr>
-                    <td colSpan={8} style={{ padding: '16px', textAlign: 'center', color: '#94a3b8' }}>
-                      ไม่พบข้อมูลประวัติการซ่อม
+                    <td colSpan={8} style={{ padding: '12px', textAlign: 'center', color: '#666666', border: '1px solid #000000' }}>
+                      ไม่พบข้อมูลประวัติการซ่อมบำรุง
                     </td>
                   </tr>
                 ) : (
                   eqLogs.map((log, idx) => (
-                    <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
-                      <td style={{ border: '1px solid #cbd5e1', padding: '5px', textAlign: 'center' }}>{idx + 1}</td>
-                      <td style={{ border: '1px solid #cbd5e1', padding: '5px', fontFamily: 'monospace' }}>{formatThaiDate(log.date)}</td>
-                      <td style={{ border: '1px solid #cbd5e1', padding: '5px' }}>{log.repairDetail || '-'}</td>
-                      <td style={{ border: '1px solid #cbd5e1', padding: '5px' }}>
+                    <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f9f9f9', pageBreakInside: 'avoid' }}>
+                      <td style={{ border: '1px solid #000000', padding: '3px', textAlign: 'center', fontWeight: 'bold' }}>{idx + 1}</td>
+                      <td style={{ border: '1px solid #000000', padding: '3px', fontFamily: 'monospace' }}>{formatThaiDate(log.date)}</td>
+                      <td style={{ border: '1px solid #000000', padding: '3px 4px' }}>{log.repairDetail || '-'}</td>
+                      <td style={{ border: '1px solid #000000', padding: '3px 4px' }}>
                         {log.partUsedId ? `${log.partUsedId} (${log.partQty} ชิ้น)` : '-'}
                       </td>
-                      <td style={{ border: '1px solid #cbd5e1', padding: '5px', textAlign: 'right', fontFamily: 'monospace' }}>
-                        ฿{(log.partCost || 0).toLocaleString()}
+                      <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>
+                        {(log.partCost || 0).toLocaleString()}
                       </td>
-                      <td style={{ border: '1px solid #cbd5e1', padding: '5px', textAlign: 'right', fontFamily: 'monospace' }}>
-                        ฿{(log.otherCost || 0).toLocaleString()}
+                      <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace' }}>
+                        {(log.otherCost || 0).toLocaleString()}
                       </td>
-                      <td style={{ border: '1px solid #cbd5e1', padding: '5px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold' }}>
-                        ฿{(log.totalCost || 0).toLocaleString()}
+                      <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold' }}>
+                        {(log.totalCost || 0).toLocaleString()}
                       </td>
-                      <td style={{ border: '1px solid #cbd5e1', padding: '5px' }}>{log.technician || '-'}</td>
+                      <td style={{ border: '1px solid #000000', padding: '3px 4px' }}>{log.technician || '-'}</td>
                     </tr>
                   ))
                 )}
               </tbody>
               {eqLogs.length > 0 && (
                 <tfoot>
-                  <tr style={{ backgroundColor: '#0f172a', color: '#ffffff', fontWeight: 'bold' }}>
-                    <td colSpan={4} style={{ border: '1px solid #0f172a', padding: '6px', textAlign: 'right' }}>
-                      รวมมูลค่าค่าซ่อมบำรุงสุทธิ:
+                  <tr style={{ backgroundColor: '#f0f0f0', color: '#000000', fontWeight: 'bold', borderTop: '1.5px solid #000000' }}>
+                    <td colSpan={4} style={{ border: '1px solid #000000', padding: '4px', textAlign: 'right' }}>
+                      รวมมูลค่าค่าซ่อมบำรุงสุทธิ ({eqLogs.length} รายการ):
                     </td>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px', textAlign: 'right', fontFamily: 'monospace', color: '#4ade80' }}>
+                    <td style={{ border: '1px solid #000000', padding: '4px', textAlign: 'right', fontFamily: 'monospace' }}>
                       ฿{totalPartCost.toLocaleString()}
                     </td>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px', textAlign: 'right', fontFamily: 'monospace', color: '#fcd34d' }}>
+                    <td style={{ border: '1px solid #000000', padding: '4px', textAlign: 'right', fontFamily: 'monospace' }}>
                       ฿{totalOtherCost.toLocaleString()}
                     </td>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px', textAlign: 'right', fontFamily: 'monospace', color: '#fbbf24', fontSize: '12px' }}>
+                    <td style={{ border: '1px solid #000000', padding: '4px', textAlign: 'right', fontFamily: 'monospace', fontSize: '10px' }}>
                       ฿{totalAccumulatedCost.toLocaleString()}
                     </td>
-                    <td style={{ border: '1px solid #0f172a', padding: '6px' }}></td>
+                    <td style={{ border: '1px solid #000000', padding: '4px' }}></td>
                   </tr>
                 </tfoot>
               )}
@@ -593,24 +603,24 @@ export default function EquipmentHistoryModal({
           </div>
 
           {/* สรุปข้อเสนอแนะ */}
-          <div style={{ backgroundColor: '#fffbebfb', border: '1px solid #fde68a', borderRadius: '6px', padding: '10px', fontSize: '11px', color: '#78350f', marginBottom: '24px' }}>
+          <div style={{ border: '1px solid #000000', padding: '6px 8px', fontSize: '9.5px', color: '#000000', marginBottom: '16px', backgroundColor: '#fafafa' }}>
             <strong>ข้อเสนอแนะฝ่ายซ่อมบำรุงและวิเคราะห์สินทรัพย์:</strong> {statusBadge.note}
           </div>
 
-          {/* ลายเซ็นอนุมัติ */}
-          <div style={{ display: 'flex', justifyBetween: 'space-between', marginTop: '40px', fontSize: '11px' }}>
-            <div style={{ width: '45%', textAlign: 'center' }}>
-              <div style={{ borderBottom: '1px solid #94a3b8', height: '35px', marginBottom: '6px' }} />
+          {/* ลายเซ็นอนุมัติ (2 Signature Blocks) */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px', fontSize: '9.5px', color: '#000000' }}>
+            <div style={{ width: '42%', textAlign: 'center' }}>
+              <div style={{ borderBottom: '1px solid #000000', height: '28px', marginBottom: '4px' }} />
               <p style={{ margin: 0, fontWeight: 'bold' }}>ลงชื่อ: ...........................................................</p>
-              <p style={{ margin: '4px 0 0 0', color: '#475569' }}>( ช่างผู้รับผิดชอบ / ผู้คุมคลังอะไหล่ )</p>
-              <p style={{ margin: '2px 0 0 0', color: '#94a3b8' }}>วันที่ ....... / ....... / .......</p>
+              <p style={{ margin: '2px 0 0 0', color: '#333333' }}>( ช่างผู้รับผิดชอบ / ผู้คุมคลังอะไหล่ )</p>
+              <p style={{ margin: '2px 0 0 0', color: '#666666', fontSize: '8.5px' }}>วันที่ ....... / ....... / .......</p>
             </div>
 
-            <div style={{ width: '45%', textAlign: 'center', marginLeft: 'auto' }}>
-              <div style={{ borderBottom: '1px solid #94a3b8', height: '35px', marginBottom: '6px' }} />
+            <div style={{ width: '42%', textAlign: 'center' }}>
+              <div style={{ borderBottom: '1px solid #000000', height: '28px', marginBottom: '4px' }} />
               <p style={{ margin: 0, fontWeight: 'bold' }}>ลงชื่อ: ...........................................................</p>
-              <p style={{ margin: '4px 0 0 0', color: '#475569' }}>( หัวหน้าฝ่ายซ่อมบำรุง / ผู้อำนวยการโรงงาน )</p>
-              <p style={{ margin: '2px 0 0 0', color: '#94a3b8' }}>วันที่ ....... / ....... / .......</p>
+              <p style={{ margin: '2px 0 0 0', color: '#333333' }}>( หัวหน้าฝ่ายซ่อมบำรุง / ผู้อำนวยการโรงงาน )</p>
+              <p style={{ margin: '2px 0 0 0', color: '#666666', fontSize: '8.5px' }}>วันที่ ....... / ....... / .......</p>
             </div>
           </div>
 
