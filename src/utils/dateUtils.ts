@@ -15,7 +15,8 @@ export function extractMonthKey(dateStr: string): string {
   // Match YYYY-MM or YYYY/MM
   const yyyyMm = dateStr.match(/(\d{4})[-/](\d{1,2})/);
   if (yyyyMm) {
-    const year = yyyyMm[1];
+    let year = parseInt(yyyyMm[1], 10);
+    if (year > 2400) year -= 543;
     const month = yyyyMm[2].padStart(2, '0');
     return `${year}-${month}`;
   }
@@ -23,7 +24,8 @@ export function extractMonthKey(dateStr: string): string {
   // Match DD/MM/YYYY or DD-MM-YYYY
   const ddMmYyyy = dateStr.match(/(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
   if (ddMmYyyy) {
-    const year = ddMmYyyy[3];
+    let year = parseInt(ddMmYyyy[3], 10);
+    if (year > 2400) year -= 543;
     const month = ddMmYyyy[2].padStart(2, '0');
     return `${year}-${month}`;
   }

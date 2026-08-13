@@ -4,12 +4,14 @@ import { getEmbeddableImageUrl } from '../utils/image';
 import { 
   Wrench, Plus, Search, Calendar, DollarSign, ShieldAlert, Cpu, Settings, Edit, 
   X, Upload, Image, Link, BarChart2, TrendingUp, Maximize2, FileText, AlertTriangle, 
-  CheckCircle, ArrowRightLeft, RefreshCw, Camera, Eye, FolderPlus, ExternalLink
+  CheckCircle, ArrowRightLeft, RefreshCw, Camera, Eye, FolderPlus, ExternalLink,
+  Trophy, Printer, PackageMinus, Layers, ChevronRight, Info, CheckCircle2
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, 
   ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line 
 } from 'recharts';
+import EquipmentHistoryModal from './EquipmentHistoryModal';
 
 interface MaintenanceTabProps {
   equipments: Equipment[];
@@ -54,9 +56,14 @@ export default function MaintenanceTab({
   onUpdateMaintenanceLog,
   isSubmitting
 }: MaintenanceTabProps) {
-  const [activeSubTab, setActiveSubTab] = useState<'logs' | 'analytics'>('logs');
+  const [activeSubTab, setActiveSubTab] = useState<'top5' | 'logs' | 'analytics'>('top5');
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddLogForm, setShowAddLogForm] = useState(false);
+
+  // Inspector & Top 5 states
+  const [selectedInspectorEqId, setSelectedInspectorEqId] = useState<string>('');
+  const [inspectorTab, setInspectorTab] = useState<'parts' | 'logs'>('parts');
+  const [historyModalEqId, setHistoryModalEqId] = useState<string | null>(null);
 
   // Form states
   const [selectedEqId, setSelectedEqId] = useState('');
@@ -245,6 +252,67 @@ export default function MaintenanceTab({
     log.technician.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // คำนวณสรุปค่าซ่อมและประวัติงานซ่อมแยกรายเครื่องจักร
+  const equipmentStats = equipments.map(eq => {
+    const logs = maintenanceLogs.filter(log => log.equipmentId === eq.id);
+    const totalCost = logs.reduce((sum, log) => sum + log.totalCost, 0);
+    const partsCost = logs.reduce((sum, log) => sum + log.partCost, 0);
+    const serviceCost = logs.reduce((sum, log) => sum + log.otherCost, 0);
+    const incidentCount = logs.length;
+    return {
+      ...eq,
+      totalCost,
+      partsCost,
+      serviceCost,
+      incidentCount,
+      logs
+    };
+  });
+
+  // เรียงลำดับเครื่องแพ็ค / เครื่องจักรที่มีค่าใช้จ่ายในการซ่อมมากที่สุด 5 ลำดับแรก
+  const top5Equipments = [...equipmentStats]
+    .sort((a, b) => b.totalCost - a.totalCost)
+    .slice(0, 5);
+
+  // ข้อมูลเครื่องจักรที่เลือกดูเจาะลึก (Drill-Down Inspector)
+  const activeInspectorEqId = selectedInspectorEqId || top5Equipments[0]?.id || equipments[0]?.id || '';
+  const inspectorEq = equipmentStats.find(eq => eq.id === activeInspectorEqId) || equipmentStats[0];
+
+  // รวบรวมสรุปรายการอะไหล่ที่เคยเบิกไปใช้กับเครื่องจักรรหัสนี้
+  const inspectorPartsMap = new Map<string, {
+    partId: string;
+    partName: string;
+    unit: string;
+    totalQty: number;
+    totalCost: number;
+    lastDate: string;
+    lastTech: string;
+  }>();
+
+  if (inspectorEq && inspectorEq.logs) {
+    inspectorEq.logs.forEach(log => {
+      if (log.partUsedId && log.partUsedId !== '-') {
+        const partObj = parts.find(p => p.id === log.partUsedId);
+        const existing = inspectorPartsMap.get(log.partUsedId) || {
+          partId: log.partUsedId,
+          partName: partObj?.name || 'อะไหล่นอกคลัง/ระบุไอดี',
+          unit: partObj?.unit || 'ชิ้น',
+          totalQty: 0,
+          totalCost: 0,
+          lastDate: log.date,
+          lastTech: log.technician
+        };
+        existing.totalQty += log.partQty;
+        existing.totalCost += log.partCost;
+        existing.lastDate = log.date;
+        existing.lastTech = log.technician;
+        inspectorPartsMap.set(log.partUsedId, existing);
+      }
+    });
+  }
+
+  const inspectorPartsList = Array.from(inspectorPartsMap.values()).sort((a, b) => b.totalCost - a.totalCost);
+
   // --- ANALYTICS DATA CALCULATIONS ---
   const totalCostSum = maintenanceLogs.reduce((sum, log) => sum + log.totalCost, 0);
   const totalPartsCostSum = maintenanceLogs.reduce((sum, log) => sum + log.partCost, 0);
@@ -372,10 +440,21 @@ export default function MaintenanceTab({
 
         <div className="flex flex-row items-center gap-2">
           {/* Sub tabs navigation */}
-          <div className="bg-slate-100 p-1 rounded-xl flex border border-slate-200 self-start lg:self-auto shadow-sm">
+          <div className="bg-slate-100 p-1 rounded-xl flex border border-slate-200 self-start lg:self-auto shadow-sm overflow-x-auto max-w-full">
+            <button
+              onClick={() => setActiveSubTab('top5')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                activeSubTab === 'top5'
+                  ? 'bg-white text-violet-700 shadow'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Trophy className="h-3.5 w-3.5 text-amber-500" />
+              <span>5 อันดับค่าซ่อมสูงสุด & เจาะลึกรายเครื่อง</span>
+            </button>
             <button
               onClick={() => setActiveSubTab('logs')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
                 activeSubTab === 'logs'
                   ? 'bg-white text-violet-700 shadow'
                   : 'text-slate-600 hover:text-slate-900'
@@ -386,7 +465,7 @@ export default function MaintenanceTab({
             </button>
             <button
               onClick={() => setActiveSubTab('analytics')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
                 activeSubTab === 'analytics'
                   ? 'bg-white text-violet-700 shadow'
                   : 'text-slate-600 hover:text-slate-900'
@@ -410,6 +489,351 @@ export default function MaintenanceTab({
           </button>
         </div>
       </div>
+
+      {/* RENDER VIEW: TOP 5 RANKING & EQUIPMENT DRILL-DOWN INSPECTOR */}
+      {activeSubTab === 'top5' && (
+        <div className="space-y-6 animate-fade-in">
+          {/* SECTION 1: 🏆 5 อันดับเครื่องแพ็ค / เครื่องจักรที่มีค่าใช้จ่ายซ่อมบำรุงสูงสุด */}
+          <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-md space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center border border-amber-200 shrink-0">
+                  <Trophy className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 font-display flex items-center gap-2">
+                    ลำดับเครื่องแพ็ค / เครื่องจักรที่มีค่าใช้จ่ายในการซ่อมมากที่สุด 5 อันดับแรก
+                  </h3>
+                  <p className="text-xs text-slate-500 font-sans">
+                    วิเคราะห์งบซ่อมสะสมเพื่อระบุจุดเสี่ยงและเครื่องจักรที่มีค่าบำรุงรักษาสูงผิดปกติ (Top 5 Maintenance Cost Bad Actors)
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold px-3 py-1 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 font-mono">
+                  TOP 5 COST RANKING
+                </span>
+              </div>
+            </div>
+
+            {top5Equipments.length === 0 ? (
+              <div className="text-center py-10 text-slate-400 text-xs font-sans">
+                ยังไม่มีข้อมูลประวัติการซ่อมสำหรับจัดอันดับเครื่องจักร
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                {top5Equipments.map((eq, idx) => {
+                  const isSelected = eq.id === activeInspectorEqId;
+                  const rankBadges = [
+                    { label: 'อันดับ 1', bg: 'bg-amber-500 text-white border-amber-600' },
+                    { label: 'อันดับ 2', bg: 'bg-slate-400 text-white border-slate-500' },
+                    { label: 'อันดับ 3', bg: 'bg-amber-700 text-white border-amber-800' },
+                    { label: 'อันดับ 4', bg: 'bg-indigo-600 text-white border-indigo-700' },
+                    { label: 'อันดับ 5', bg: 'bg-violet-600 text-white border-violet-700' },
+                  ];
+                  const badge = rankBadges[idx] || rankBadges[4];
+                  const assessment = getCostEffectiveness(eq.totalCost, eq.purchasePrice);
+
+                  return (
+                    <div
+                      key={eq.id}
+                      onClick={() => setSelectedInspectorEqId(eq.id)}
+                      className={`rounded-2xl p-4 border transition-all cursor-pointer relative flex flex-col justify-between ${
+                        isSelected
+                          ? 'bg-violet-50/80 border-violet-400 shadow-md ring-2 ring-violet-400/50 scale-[1.02]'
+                          : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border shadow-2xs font-mono ${badge.bg}`}>
+                            {badge.label}
+                          </span>
+                          <span className="text-[10px] font-mono font-bold text-slate-400">
+                            {eq.id}
+                          </span>
+                        </div>
+
+                        <h4 className="font-bold text-slate-900 text-xs font-display line-clamp-2 min-h-[2rem]">
+                          {eq.name}
+                        </h4>
+                        <p className="text-[10px] text-slate-500 font-sans mt-0.5 flex items-center gap-1">
+                          <Cpu className="h-3 w-3 text-slate-400 shrink-0" />
+                          <span>ไลน์ {eq.location}</span>
+                        </p>
+
+                        <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5">
+                          <div className="flex justify-between items-baseline">
+                            <span className="text-[10px] text-slate-500 font-sans">ค่าซ่อมสะสมรวม:</span>
+                            <span className="font-mono font-extrabold text-sm text-rose-600">
+                              ฿{eq.totalCost.toLocaleString()}
+                            </span>
+                          </div>
+
+                          <div className="flex justify-between items-center text-[10px] text-slate-500">
+                            <span>จำนวนเข้าซ่อม:</span>
+                            <span className="font-mono font-bold text-slate-800">{eq.incidentCount} ครั้ง</span>
+                          </div>
+
+                          <div className="flex justify-between items-center text-[10px] text-slate-500">
+                            <span>มูลค่าอะไหล่:</span>
+                            <span className="font-mono text-slate-700">฿{eq.partsCost.toLocaleString()}</span>
+                          </div>
+
+                          <div className="flex justify-between items-center text-[10px] text-slate-500">
+                            <span>ค่าช่างนอก:</span>
+                            <span className="font-mono text-slate-700">฿{eq.serviceCost.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 pt-2">
+                        <div className={`text-[10px] px-2 py-1 rounded-lg border text-center font-bold font-sans ${assessment.color}`}>
+                          {assessment.text}
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedInspectorEqId(eq.id);
+                          }}
+                          className={`mt-2 w-full py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                            isSelected
+                              ? 'bg-violet-600 text-white shadow-xs'
+                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                          }`}
+                        >
+                          <span>{isSelected ? 'กำลังเจาะลึกเครื่องนี้' : 'เลือกดูข้อมูลเบิกซ่อม'}</span>
+                          <ChevronRight className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* SECTION 2: 🔎 เจาะลึกประวัติการเบิกอะไหล่ & การซ่อมบำรุงรายเครื่อง (Equipment Inspector) */}
+          <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-lg space-y-5">
+            {/* Header Inspector */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 bg-violet-50 text-violet-600 rounded-xl flex items-center justify-center border border-violet-100 shrink-0">
+                  <Cpu className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 font-display flex items-center gap-2">
+                    เจาะลึกประวัติการเบิกอะไหล่ & งานซ่อมบำรุงรายรหัสเครื่องแพ็ค
+                  </h3>
+                  <p className="text-xs text-slate-500 font-sans">
+                    เลือกดูรายละเอียดว่าเครื่องแพ็ค/เครื่องจักรรหัสนี้ได้ทำการ <strong className="text-violet-700 font-bold">เบิกอะไหล่อะไรไปบ้าง</strong> และมี <strong className="text-slate-800 font-bold">ประวัติอาการชำรุดเรื่องอะไรบ้าง</strong>
+                  </p>
+                </div>
+              </div>
+
+              {/* Dropdown Selector for Machine */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <div className="relative">
+                  <select
+                    value={activeInspectorEqId}
+                    onChange={(e) => setSelectedInspectorEqId(e.target.value)}
+                    className="bg-slate-50 hover:bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-violet-500 outline-none shadow-xs font-sans cursor-pointer pr-8"
+                  >
+                    {equipments.map(eq => (
+                      <option key={eq.id} value={eq.id}>
+                        [{eq.id}] {eq.name} - (ไลน์ {eq.location})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <button
+                  onClick={() => setHistoryModalEqId(activeInspectorEqId)}
+                  className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <Printer className="h-3.5 w-3.5 text-amber-400" />
+                  <span>พิมพ์รายงาน A4</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Selected Equipment Info Header Banner */}
+            {inspectorEq && (
+              <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col md:flex-row justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-violet-500/30 text-violet-200 border border-violet-400/30 text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full">
+                      EQUIPMENT CODE: {inspectorEq.id}
+                    </span>
+                    <span className="text-xs text-slate-300 font-sans">| ไลน์: {inspectorEq.location}</span>
+                  </div>
+                  <h4 className="text-lg font-bold font-display text-white">{inspectorEq.name}</h4>
+                  <p className="text-xs text-slate-300 font-sans">
+                    ราคาจัดซื้อแรกเริ่ม: ฿{inspectorEq.purchasePrice.toLocaleString()} | พิกัดงบซ่อมวิกฤต: ฿{inspectorEq.maxRepairBudget.toLocaleString()}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 border-t md:border-t-0 md:border-l border-slate-700/80 pt-3 md:pt-0 md:pl-5 font-mono">
+                  <div>
+                    <span className="text-[10px] text-slate-400 uppercase font-sans block">ค่าซ่อมรวม</span>
+                    <span className="text-base font-extrabold text-amber-400">฿{inspectorEq.totalCost.toLocaleString()}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 uppercase font-sans block">อะไหล่ที่เบิกใช้</span>
+                    <span className="text-base font-bold text-indigo-300">{inspectorPartsList.length} ชนิด</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 uppercase font-sans block">เข้าซ่อมรวม</span>
+                    <span className="text-base font-bold text-emerald-300">{inspectorEq.incidentCount} ครั้ง</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 uppercase font-sans block">มูลค่าอะไหล่</span>
+                    <span className="text-base font-bold text-slate-200">฿{inspectorEq.partsCost.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Inspector Toggle Sub-Tabs */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
+              <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl border border-slate-200 self-start sm:self-auto">
+                <button
+                  onClick={() => setInspectorTab('parts')}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    inspectorTab === 'parts'
+                      ? 'bg-violet-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <PackageMinus className="h-3.5 w-3.5" />
+                  <span>อะไหล่ที่เบิกไปใช้กับเครื่องนี้ ({inspectorPartsList.length})</span>
+                </button>
+
+                <button
+                  onClick={() => setInspectorTab('logs')}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    inspectorTab === 'logs'
+                      ? 'bg-violet-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Wrench className="h-3.5 w-3.5" />
+                  <span>ประวัติอาการเสีย & รายรายละเอียดการซ่อม ({inspectorEq?.logs.length || 0})</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Inspector Tab 1: Withdrawn Spare Parts Table */}
+            {inspectorTab === 'parts' && (
+              <div className="space-y-3">
+                <div className="max-h-80 overflow-y-auto border border-slate-200 rounded-xl overflow-hidden shadow-inner bg-slate-50/50">
+                  <table className="w-full text-left text-xs border-collapse font-sans">
+                    <thead>
+                      <tr className="bg-violet-100/70 text-violet-900 font-bold border-b border-violet-200">
+                        <th className="py-2.5 px-3">รหัสอะไหล่</th>
+                        <th className="py-2.5 px-3">ชื่อชิ้นส่วนอะไหล่</th>
+                        <th className="py-2.5 px-3 text-right">จำนวนเบิกสะสม</th>
+                        <th className="py-2.5 px-3 text-right">มูลค่ารวมที่เบิก (บาท)</th>
+                        <th className="py-2.5 px-3">ช่างผู้เบิกล่าสุด</th>
+                        <th className="py-2.5 px-3">วันเวลาทำรายการล่าสุด</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 bg-white text-slate-700">
+                      {inspectorPartsList.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-8 text-center text-slate-400">
+                            ไม่มีประวัติการเบิกใช้อะไหล่จากคลังสำหรับเครื่องจักรรหัสนี้ (อาจซ่อมโดยไม่ใช้อะไหล่ หรือจ้างช่างภายนอก)
+                          </td>
+                        </tr>
+                      ) : (
+                        inspectorPartsList.map(item => (
+                          <tr key={item.partId} className="hover:bg-violet-50/30 transition-colors">
+                            <td className="py-2.5 px-3 font-mono font-bold text-slate-800">{item.partId}</td>
+                            <td className="py-2.5 px-3 font-semibold text-slate-900">{item.partName}</td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-violet-600">
+                              {item.totalQty} {item.unit}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
+                              ฿{item.totalCost.toLocaleString()}
+                            </td>
+                            <td className="py-2.5 px-3 font-semibold text-slate-700">{item.lastTech}</td>
+                            <td className="py-2.5 px-3 font-mono text-slate-500 text-[11px]">{item.lastDate}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Inspector Tab 2: Full Repair Logs for this Machine */}
+            {inspectorTab === 'logs' && (
+              <div className="space-y-3">
+                <div className="max-h-80 overflow-y-auto border border-slate-200 rounded-xl overflow-hidden shadow-inner bg-slate-50/50">
+                  <table className="w-full text-left text-xs border-collapse font-sans">
+                    <thead>
+                      <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-200">
+                        <th className="py-2.5 px-3">วันที่ / เวลา</th>
+                        <th className="py-2.5 px-3">อาการชำรุด & รายละเอียดวิธีซ่อม</th>
+                        <th className="py-2.5 px-3">อะไหล่ที่เบิกใช้</th>
+                        <th className="py-2.5 px-3 text-right">ค่าอะไหล่</th>
+                        <th className="py-2.5 px-3 text-right">ค่าช่าง/อื่นๆ</th>
+                        <th className="py-2.5 px-3 text-right">รวมค่าซ่อม</th>
+                        <th className="py-2.5 px-3">ช่างผู้รับผิดชอบ</th>
+                        <th className="py-2.5 px-3 text-center">หลักฐาน</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 bg-white text-slate-700">
+                      {(!inspectorEq || inspectorEq.logs.length === 0) ? (
+                        <tr>
+                          <td colSpan={8} className="py-8 text-center text-slate-400">
+                            ไม่พบประวัติการเข้าซ่อมแซมสำหรับเครื่องจักรรหัสนี้
+                          </td>
+                        </tr>
+                      ) : (
+                        inspectorEq.logs.map((log, idx) => (
+                          <tr key={`${log.equipmentId}-${log.date}-${idx}`} className="hover:bg-slate-50 transition-colors">
+                            <td className="py-2.5 px-3 font-mono text-slate-600 text-[11px] whitespace-nowrap">{log.date}</td>
+                            <td className="py-2.5 px-3 font-medium text-slate-900 max-w-xs">{log.repairDetail}</td>
+                            <td className="py-2.5 px-3 text-slate-700">
+                              {log.partUsedId && log.partUsedId !== '-' ? (
+                                <span className="font-mono text-[11px] bg-slate-100 px-2 py-0.5 rounded-md font-bold">
+                                  {log.partUsedId} ({log.partQty} ชิ้น)
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 text-[11px]">-</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-600">฿{log.partCost.toLocaleString()}</td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-600">฿{log.otherCost.toLocaleString()}</td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-600">฿{log.totalCost.toLocaleString()}</td>
+                            <td className="py-2.5 px-3 font-semibold text-slate-800">{log.technician}</td>
+                            <td className="py-2.5 px-3 text-center">
+                              {log.imageUrl ? (
+                                <button
+                                  onClick={() => setZoomedImage({ url: getEmbeddableImageUrl(log.imageUrl!), name: `${inspectorEq.name} (${log.date})` })}
+                                  className="p-1 bg-violet-50 hover:bg-violet-100 text-violet-600 rounded-lg transition-all cursor-pointer"
+                                  title="ดูรูปถ่าย"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </button>
+                              ) : (
+                                <span className="text-slate-300 text-[10px]">-</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* RENDER VIEW: ANALYTICS SUB TAB */}
       {activeSubTab === 'analytics' && (
@@ -1286,6 +1710,18 @@ export default function MaintenanceTab({
             </div>
           </div>
         </div>
+      )}
+
+      {/* โมดอลเปิดดูรายงาน A4 ประวัติการซ่อมแบบพิมพ์ */}
+      {historyModalEqId && (
+        <EquipmentHistoryModal
+          isOpen={!!historyModalEqId}
+          onClose={() => setHistoryModalEqId(null)}
+          initialEquipmentId={historyModalEqId}
+          equipments={equipments}
+          maintenanceLogs={maintenanceLogs}
+          parts={parts}
+        />
       )}
     </div>
   );
