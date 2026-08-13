@@ -23,11 +23,13 @@ export interface Transaction {
 
 export interface Equipment {
   id: string; // รหัสเครื่องจักร/อุปกรณ์
+  assetCode?: string; // รหัสทรัพย์สิน
   name: string; // ชื่อเครื่องจักร/อุปกรณ์
   location: string; // ไลน์ผลิต/ตำแหน่ง
   purchasePrice: number; // ราคาซื้อแรกเริ่ม
   maxRepairBudget: number; // งบซ่อมสะสมสูงสุดที่รับได้ (หรือราคาเปลี่ยนเครื่องใหม่)
   purchaseDate: string; // วันที่ติดตั้ง/ซื้อ
+  equipmentType?: 'Main' | 'Spare'; // ประเภทเครื่องมือ (Main = เครื่องมือหลัก, Spare = เครื่องมือสำรอง)
 }
 
 export interface MaintenanceLog {
@@ -48,4 +50,20 @@ export interface SpreadsheetConnection {
   spreadsheetId: string;
   spreadsheetUrl: string;
   name: string;
+}
+
+export interface SpareLoan {
+  id: string; // รหัสการยืม เช่น LOAN-001
+  borrowDate: string; // วันเวลาที่ยืม
+  partId: string; // รหัสอะไหล่/เครื่องมือ Spare
+  partName: string; // ชื่ออะไหล่/เครื่องมือ Spare
+  lineLocation: string; // ไลน์ผลิต/ตำแหน่งที่นำไปใช้
+  borrowerName: string; // ชื่อผู้ยืม/ช่างเทคนิค
+  quantity: number; // จำนวนที่ยืม
+  purposeNote: string; // วัตถุประสงค์/หมายเหตุ
+  status: 'กำลังยืม' | 'คืนแล้ว'; // สถานะ (กำลังยืม, คืนแล้ว)
+  expectedReturnDate: string; // กำหนดวันคืน
+  returnDate?: string; // วันเวลาที่รับคืน
+  receiverName?: string; // ผู้รับคืน
+  returnNote?: string; // สภาพอุปกรณ์/หมายเหตุการรับคืน
 }

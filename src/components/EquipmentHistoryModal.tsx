@@ -195,7 +195,7 @@ export default function EquipmentHistoryModal({
               >
                 {equipments.map(eq => (
                   <option key={eq.id} value={eq.id}>
-                    {eq.id} - {eq.name} ({eq.location})
+                    {eq.id} {eq.assetCode ? `[${eq.assetCode}] ` : ''}- {eq.name} ({eq.location})
                   </option>
                 ))}
               </select>
@@ -230,6 +230,11 @@ export default function EquipmentHistoryModal({
                   <span className="font-mono text-xs font-extrabold px-2.5 py-1 bg-blue-500/20 text-blue-300 border border-blue-400/30 rounded-lg">
                     {currentEquipment.id}
                   </span>
+                  {currentEquipment.assetCode && (
+                    <span className="font-mono text-xs font-bold px-2.5 py-1 bg-slate-700/80 text-amber-300 border border-amber-400/30 rounded-lg">
+                      ทรัพย์สิน: {currentEquipment.assetCode}
+                    </span>
+                  )}
                   <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${statusBadge.bg}`}>
                     {statusBadge.text}
                   </span>

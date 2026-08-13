@@ -9,19 +9,23 @@ interface EquipmentTabProps {
   parts?: SparePart[];
   onAddEquipment: (eq: {
     id: string;
+    assetCode?: string;
     name: string;
     location: string;
     purchasePrice: number;
     maxRepairBudget: number;
     purchaseDate: string;
+    equipmentType?: 'Main' | 'Spare';
   }) => Promise<void>;
   onUpdateEquipment?: (eq: {
     id: string;
+    assetCode?: string;
     name: string;
     location: string;
     purchasePrice: number;
     maxRepairBudget: number;
     purchaseDate: string;
+    equipmentType?: 'Main' | 'Spare';
   }) => Promise<void>;
   isSubmitting: boolean;
 }
@@ -40,31 +44,37 @@ export default function EquipmentTab({
 
   // Form states
   const [id, setId] = useState('');
+  const [assetCode, setAssetCode] = useState('');
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
   const [purchasePrice, setPurchasePrice] = useState<number>(0);
   const [maxRepairBudget, setMaxRepairBudget] = useState<number>(0);
   const [purchaseDate, setPurchaseDate] = useState('');
+  const [equipmentType, setEquipmentType] = useState<'Main' | 'Spare'>('Main');
 
   const [formError, setFormError] = useState('');
 
   // Inline edit states
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editAssetCode, setEditAssetCode] = useState('');
   const [editName, setEditName] = useState('');
   const [editLocation, setEditLocation] = useState('');
   const [editPurchasePrice, setEditPurchasePrice] = useState<number>(0);
   const [editMaxRepairBudget, setEditMaxRepairBudget] = useState<number>(0);
   const [editPurchaseDate, setEditPurchaseDate] = useState('');
+  const [editEquipmentType, setEditEquipmentType] = useState<'Main' | 'Spare'>('Main');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editError, setEditError] = useState('');
 
   const startEdit = (eq: Equipment) => {
     setEditingId(eq.id);
+    setEditAssetCode(eq.assetCode || '');
     setEditName(eq.name);
     setEditLocation(eq.location);
     setEditPurchasePrice(eq.purchasePrice);
     setEditMaxRepairBudget(eq.maxRepairBudget);
     setEditPurchaseDate(eq.purchaseDate);
+    setEditEquipmentType(eq.equipmentType || 'Main');
     setEditError('');
   };
 
@@ -83,11 +93,13 @@ export default function EquipmentTab({
       if (onUpdateEquipment) {
         await onUpdateEquipment({
           id: eqId,
+          assetCode: editAssetCode.trim(),
           name: editName.trim(),
           location: editLocation.trim(),
           purchasePrice: editPurchasePrice,
           maxRepairBudget: editMaxRepairBudget || Math.round(editPurchasePrice * 0.4),
-          purchaseDate: editPurchaseDate.trim()
+          purchaseDate: editPurchaseDate.trim(),
+          equipmentType: editEquipmentType
         });
       }
       setEditingId(null);
@@ -115,20 +127,24 @@ export default function EquipmentTab({
     try {
       await onAddEquipment({
         id: id.trim().toUpperCase(),
+        assetCode: assetCode.trim(),
         name: name.trim(),
         location: location.trim(),
         purchasePrice,
         maxRepairBudget: maxRepairBudget || Math.round(purchasePrice * 0.4), // default to 40% if not set
-        purchaseDate
+        purchaseDate,
+        equipmentType
       });
 
       // Clear form
       setId('');
+      setAssetCode('');
       setName('');
       setLocation('');
       setPurchasePrice(0);
       setMaxRepairBudget(0);
       setPurchaseDate('');
+      setEquipmentType('Main');
       setShowAddForm(false);
     } catch (err: any) {
       setFormError(err.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูลเครื่องจักร');
@@ -137,6 +153,7 @@ export default function EquipmentTab({
 
   const filteredEquipment = equipments.filter(eq =>
     eq.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (eq.assetCode && eq.assetCode.toLowerCase().includes(searchTerm.toLowerCase())) ||
     eq.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     eq.location.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -181,16 +198,27 @@ export default function EquipmentTab({
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-600 mb-1">รหัสเครื่องจักร *</label>
                 <input
                   type="text"
-                  placeholder="เช่น EQ-004, PACK-03"
+                  placeholder="เช่น EQ-004"
                   value={id}
                   onChange={e => setId(e.target.value)}
                   className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none font-mono"
                   required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">รหัสทรัพย์สิน</label>
+                <input
+                  type="text"
+                  placeholder="เช่น AST-PACK-004"
+                  value={assetCode}
+                  onChange={e => setAssetCode(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none font-mono"
                 />
               </div>
 
@@ -216,6 +244,18 @@ export default function EquipmentTab({
                   className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none font-sans"
                   required
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">ประเภทเครื่องมือ / อุปกรณ์ *</label>
+                <select
+                  value={equipmentType}
+                  onChange={e => setEquipmentType(e.target.value as 'Main' | 'Spare')}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none font-sans bg-white font-medium"
+                >
+                  <option value="Main">⚙️ เครื่องมือ Main (เครื่องหลัก)</option>
+                  <option value="Spare">🔄 เครื่องมือ Spare (สำรอง/สับเปลี่ยน)</option>
+                </select>
               </div>
             </div>
 
@@ -312,8 +352,10 @@ export default function EquipmentTab({
             <thead>
               <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 font-sans">
                 <th className="py-3 px-4 font-bold">รหัสเครื่องจักร</th>
+                <th className="py-3 px-4 font-bold">รหัสทรัพย์สิน</th>
                 <th className="py-3 px-4 font-bold">ชื่อเครื่องจักร / อุปกรณ์</th>
                 <th className="py-3 px-4 font-bold">ไลน์ผลิต / ตำแหน่ง</th>
+                <th className="py-3 px-4 text-center font-bold">ประเภท</th>
                 <th className="py-3 px-4 text-right font-bold">ราคาซื้อ</th>
                 <th className="py-3 px-4 text-right font-bold">งบซ่อมวิกฤตสะสม</th>
                 <th className="py-3 px-4 font-bold">เริ่มใช้งาน</th>
@@ -323,7 +365,7 @@ export default function EquipmentTab({
             <tbody className="divide-y divide-slate-200 bg-white">
               {filteredEquipment.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400 font-sans">
+                  <td colSpan={9} className="py-12 text-center text-slate-400 font-sans">
                     ไม่พบข้อมูลเครื่องจักรหรือรหัสสเปกเครื่องในระบบคลัง
                   </td>
                 </tr>
@@ -344,6 +386,15 @@ export default function EquipmentTab({
                         <td className="py-2 px-2 align-middle">
                           <input
                             type="text"
+                            value={editAssetCode}
+                            onChange={e => setEditAssetCode(e.target.value)}
+                            className="w-full border border-slate-300 rounded-lg px-2 py-1 text-xs focus:ring-1 focus:ring-blue-300 outline-none font-mono"
+                            placeholder="รหัสทรัพย์สิน"
+                          />
+                        </td>
+                        <td className="py-2 px-2 align-middle">
+                          <input
+                            type="text"
                             value={editName}
                             onChange={e => setEditName(e.target.value)}
                             className="w-full border border-slate-300 rounded-lg px-2 py-1 text-xs focus:ring-1 focus:ring-blue-300 outline-none font-sans"
@@ -358,6 +409,16 @@ export default function EquipmentTab({
                             className="w-full border border-slate-300 rounded-lg px-2 py-1 text-xs focus:ring-1 focus:ring-blue-300 outline-none font-sans"
                             placeholder="ไลน์ผลิต"
                           />
+                        </td>
+                        <td className="py-2 px-2 align-middle">
+                          <select
+                            value={editEquipmentType}
+                            onChange={e => setEditEquipmentType(e.target.value as 'Main' | 'Spare')}
+                            className="w-full border border-slate-300 rounded-lg px-2 py-1 text-xs focus:ring-1 focus:ring-blue-300 outline-none font-sans bg-white font-medium"
+                          >
+                            <option value="Main">⚙️ Main</option>
+                            <option value="Spare">🔄 Spare</option>
+                          </select>
                         </td>
                         <td className="py-2 px-2 align-middle">
                           <input
@@ -410,8 +471,28 @@ export default function EquipmentTab({
                   return (
                     <tr key={eq.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="py-3.5 px-4 font-mono font-bold text-blue-600 align-middle">{eq.id}</td>
+                      <td className="py-3.5 px-4 font-mono text-slate-700 align-middle">
+                        {eq.assetCode ? (
+                          <span className="px-2 py-0.5 bg-slate-100 rounded text-[11px] font-semibold text-slate-800 border border-slate-200">
+                            {eq.assetCode}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 text-[11px]">-</span>
+                        )}
+                      </td>
                       <td className="py-3.5 px-4 font-semibold text-slate-800 align-middle">{eq.name}</td>
                       <td className="py-3.5 px-4 text-slate-600 font-sans align-middle">{eq.location}</td>
+                      <td className="py-3.5 px-4 text-center align-middle whitespace-nowrap">
+                        {eq.equipmentType === 'Spare' ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs">
+                            🔄 Spare สำรอง
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                            ⚙️ Main หลัก
+                          </span>
+                        )}
+                      </td>
                       <td className="py-3.5 px-4 text-right font-mono font-semibold text-slate-900 align-middle">
                         ฿{eq.purchasePrice.toLocaleString()}
                       </td>

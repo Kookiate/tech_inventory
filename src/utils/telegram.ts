@@ -1,4 +1,4 @@
-import { SparePart } from '../types';
+import { SparePart, SpareLoan } from '../types';
 
 export interface TelegramSettings {
   enabled: boolean;
@@ -184,3 +184,64 @@ export async function sendPartRestockAlert(
     return false;
   }
 }
+
+/**
+ * ส่งแจ้งเตือนการยืม Spare/เครื่องมือ ไปยัง Telegram
+ */
+export async function sendToolLoanAlert(loan: SpareLoan): Promise<boolean> {
+  const settings = getTelegramSettings();
+  if (!settings.enabled || !settings.botToken || !settings.chatId) {
+    return false;
+  }
+
+  const messageText = `
+🔄 <b>[แจ้งเตือนการยืม Spare / เครื่องมือ]</b>
+━━━━━━━━━━━━━━━━━━━━━
+🔧 <b>เครื่องมือ/Spare:</b> <code>[${loan.partId}]</code> ${loan.partName}
+🔢 <b>จำนวนที่ยืม:</b> ${loan.quantity} ชิ้น/ตัว
+🏭 <b>นำไปใช้งานที่:</b> ${loan.lineLocation}
+👤 <b>ช่างผู้เบิกยืม:</b> ${loan.borrowerName}
+📅 <b>วันเวลาที่ยืม:</b> ${loan.borrowDate}
+⏳ <b>กำหนดวันคืน:</b> ${loan.expectedReturnDate || 'ไม่ได้ระบุ'}
+━━━━━━━━━━━━━━━━━━━━━
+📝 <b>วัตถุประสงค์การใช้งาน:</b>
+${loan.purposeNote || '-'}
+  `.trim();
+
+  try {
+    return await sendTelegramMessage(settings.botToken, settings.chatId, messageText);
+  } catch (error) {
+    console.error('Error sending Telegram tool loan alert:', error);
+    return false;
+  }
+}
+
+/**
+ * ส่งแจ้งเตือนการคืน Spare/เครื่องมือ เข้าคลัง ไปยัง Telegram
+ */
+export async function sendToolReturnAlert(loan: SpareLoan): Promise<boolean> {
+  const settings = getTelegramSettings();
+  if (!settings.enabled || !settings.botToken || !settings.chatId) {
+    return false;
+  }
+
+  const messageText = `
+✅ <b>[แจ้งเตือนการคืน Spare / เครื่องมือ เข้าคลัง]</b>
+━━━━━━━━━━━━━━━━━━━━━
+🔧 <b>เครื่องมือ/Spare:</b> <code>[${loan.partId}]</code> ${loan.partName}
+📍 <b>ส่งคืนจากไลน์:</b> ${loan.lineLocation}
+👤 <b>ผู้รับคืนเข้าคลัง:</b> ${loan.receiverName || '-'}
+⏰ <b>วันเวลาที่ส่งคืน:</b> ${loan.returnDate || '-'}
+━━━━━━━━━━━━━━━━━━━━━
+📝 <b>สภาพเครื่องมือ / หมายเหตุรับคืน:</b>
+${loan.returnNote || 'สภาพปกติพร้อมใช้งานต่อ'}
+  `.trim();
+
+  try {
+    return await sendTelegramMessage(settings.botToken, settings.chatId, messageText);
+  } catch (error) {
+    console.error('Error sending Telegram tool return alert:', error);
+    return false;
+  }
+}
+

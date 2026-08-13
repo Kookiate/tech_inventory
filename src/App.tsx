@@ -16,10 +16,13 @@ import {
   updateEquipment,
   updateMaintenanceLog,
   ensureAuthorizedUsersSheetExist,
-  fetchAuthorizedUsers
+  fetchAuthorizedUsers,
+  fetchToolLoansData,
+  addNewToolLoan,
+  returnToolLoan
 } from './utils/sheets';
-import { SparePart, Transaction, Equipment, MaintenanceLog } from './types';
-import { sendPartWithdrawAlert, sendPartRestockAlert, getTelegramSettings, saveTelegramSettings, sendTelegramMessage } from './utils/telegram';
+import { SparePart, Transaction, Equipment, MaintenanceLog, SpareLoan } from './types';
+import { sendPartWithdrawAlert, sendPartRestockAlert, getTelegramSettings, saveTelegramSettings, sendTelegramMessage, sendToolLoanAlert, sendToolReturnAlert } from './utils/telegram';
 
 // คอมโพเนนต์โมดูล
 import LoginView from './components/LoginView';
@@ -30,6 +33,7 @@ import DashboardTab from './components/DashboardTab';
 import AppsScriptExportTab from './components/AppsScriptExportTab';
 import EquipmentTab from './components/EquipmentTab';
 import MaintenanceTab from './components/MaintenanceTab';
+import ToolLoanTab from './components/ToolLoanTab';
 import TelegramSettingsModal from './components/TelegramSettingsModal';
 import UnauthorizedView from './components/UnauthorizedView';
 import PermissionsTab from './components/PermissionsTab';
@@ -51,7 +55,8 @@ import {
   Wrench,
   Send,
   Bell,
-  Shield
+  Shield,
+  Repeat
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -75,8 +80,9 @@ export default function App() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [equipments, setEquipments] = useState<Equipment[]>([]);
   const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLog[]>([]);
+  const [loans, setLoans] = useState<SpareLoan[]>([]);
   
-  const [activeTab, setActiveTab] = useState<'transaction' | 'inventory' | 'equipment' | 'maintenance' | 'dashboard' | 'appsscript' | 'permissions'>('transaction');
+  const [activeTab, setActiveTab] = useState<'transaction' | 'inventory' | 'equipment' | 'maintenance' | 'loans' | 'dashboard' | 'appsscript' | 'permissions'>('transaction');
   
   // ย้ายส่งรหัสเบิกด่วน
   const [preSelectedPartId, setPreSelectedPartId] = useState<string | undefined>(undefined);
@@ -86,6 +92,7 @@ export default function App() {
   const [isSubmittingTx, setIsSubmittingTx] = useState(false);
   const [isSubmittingEq, setIsSubmittingEq] = useState(false);
   const [isSubmittingLog, setIsSubmittingLog] = useState(false);
+  const [isSubmittingLoan, setIsSubmittingLoan] = useState(false);
   const [alertMessage, setAlertMessage] = useState<{ type: 'success' | 'error'; title: string; desc: string; extraAlert?: string } | null>(null);
   
   // สถานะแจ้งเตือน Telegram
@@ -220,6 +227,9 @@ export default function App() {
 
       const repairLogs = await fetchMaintenanceLogsData(accessToken, sheetId);
       setMaintenanceLogs(repairLogs);
+
+      const toolLoans = await fetchToolLoansData(accessToken, sheetId);
+      setLoans(toolLoans);
     } catch (error: any) {
       console.error('Fetch data error:', error);
       // หากดึงล้มเหลว อาจเกิดจากสิทธิ์หมดอายุ หรือระบุไอดีสเปรดชีตผิดพลาด
@@ -537,11 +547,13 @@ export default function App() {
   // 7.6 เพิ่มเครื่องจักร/อุปกรณ์ใหม่
   const handleAddNewEquipment = async (eqData: {
     id: string;
+    assetCode?: string;
     name: string;
     location: string;
     purchasePrice: number;
     maxRepairBudget: number;
     purchaseDate: string;
+    equipmentType?: 'Main' | 'Spare';
   }) => {
     if (!token || !spreadsheetId) return;
     setIsSubmittingEq(true);
@@ -570,11 +582,13 @@ export default function App() {
   // 7.6.5 แก้ไขข้อมูลเครื่องจักร/อุปกรณ์
   const handleUpdateEquipment = async (eqData: {
     id: string;
+    assetCode?: string;
     name: string;
     location: string;
     purchasePrice: number;
     maxRepairBudget: number;
     purchaseDate: string;
+    equipmentType?: 'Main' | 'Spare';
   }) => {
     if (!token || !spreadsheetId) return;
     setIsSubmittingEq(true);
@@ -714,6 +728,81 @@ export default function App() {
       throw error;
     } finally {
       setIsSubmittingLog(false);
+    }
+  };
+
+  // 7.8 บันทึกการยืม Spare เครื่องมือใหม่
+  const handleAddNewToolLoan = async (loanData: {
+    partId: string;
+    partName: string;
+    lineLocation: string;
+    borrowerName: string;
+    quantity: number;
+    purposeNote: string;
+    expectedReturnDate: string;
+  }) => {
+    if (!token || !spreadsheetId) return;
+    setIsSubmittingLoan(true);
+    try {
+      const result = await addNewToolLoan(token, spreadsheetId, loanData);
+      if (result.success) {
+        setLoans(prev => [result.newLoan, ...prev]);
+
+        // ส่งแจ้งเตือน Telegram หากเปิดใช้งาน
+        if (isTelegramEnabled) {
+          sendToolLoanAlert(result.newLoan).catch(err => console.error('Telegram borrow alert error:', err));
+        }
+
+        setAlertMessage({
+          type: 'success',
+          title: '📍 บันทึกการยืม Spare เรียบร้อย!',
+          desc: `บันทึกการยืม "${result.newLoan.partName}" นำไปใช้งานที่ "${result.newLoan.lineLocation}" โดยช่าง ${result.newLoan.borrowerName} เรียบร้อยแล้ว`,
+        });
+      }
+    } catch (error: any) {
+      console.error('Add tool loan error:', error);
+      setAlertMessage({
+        type: 'error',
+        title: 'ไม่สามารถบันทึกการยืมได้',
+        desc: error.message || 'เกิดข้อผิดพลาดในการอัปเดต Google Sheets'
+      });
+    } finally {
+      setIsSubmittingLoan(false);
+    }
+  };
+
+  // 7.9 บันทึกคืน Spare เข้าคลัง
+  const handleReturnToolLoan = async (loanId: string, returnData: {
+    receiverName: string;
+    returnNote: string;
+  }) => {
+    if (!token || !spreadsheetId) return;
+    setIsSubmittingLoan(true);
+    try {
+      const result = await returnToolLoan(token, spreadsheetId, loanId, returnData);
+      if (result.success) {
+        setLoans(prev => prev.map(l => l.id === loanId ? result.updatedLoan : l));
+
+        // ส่งแจ้งเตือน Telegram
+        if (isTelegramEnabled) {
+          sendToolReturnAlert(result.updatedLoan).catch(err => console.error('Telegram return alert error:', err));
+        }
+
+        setAlertMessage({
+          type: 'success',
+          title: '✅ บันทึกรับคืน Spare เรียบร้อย!',
+          desc: `รับคืน "${result.updatedLoan.partName}" จากไลน์ "${result.updatedLoan.lineLocation}" เข้าคลังอย่างปลอดภัย`,
+        });
+      }
+    } catch (error: any) {
+      console.error('Return tool loan error:', error);
+      setAlertMessage({
+        type: 'error',
+        title: 'ไม่สามารถบันทึกรับคืนได้',
+        desc: error.message || 'เกิดข้อผิดพลาดในการอัปเดต Google Sheets'
+      });
+    } finally {
+      setIsSubmittingLoan(false);
     }
   };
 
@@ -933,6 +1022,26 @@ export default function App() {
 
             <button
               onClick={() => {
+                setActiveTab('loans');
+                loadAllData(token!, spreadsheetId);
+              }}
+              className={`flex-1 min-w-[130px] px-3 sm:px-4 py-3 border-b-4 flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap relative ${
+                activeTab === 'loans' 
+                  ? 'text-blue-600 border-blue-600 font-bold bg-blue-50/40' 
+                  : 'text-slate-600 border-transparent hover:border-slate-300 hover:bg-slate-50 font-medium'
+              }`}
+            >
+              <Repeat className="h-4 w-4 shrink-0 text-amber-500" />
+              <span>ยืม-คืน Spare</span>
+              {loans.filter(l => l.status === 'กำลังยืม').length > 0 && (
+                <span className="ml-1 px-1.5 py-0.5 bg-amber-500 text-slate-950 font-black text-[10px] rounded-full animate-pulse">
+                  {loans.filter(l => l.status === 'กำลังยืม').length}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => {
                 setActiveTab('dashboard');
                 loadAllData(token!, spreadsheetId);
               }}
@@ -1025,6 +1134,17 @@ export default function App() {
                 onAddMaintenanceLog={handleAddNewMaintenanceLog}
                 onUpdateMaintenanceLog={handleUpdateMaintenanceLog}
                 isSubmitting={isSubmittingLog}
+              />
+            )}
+
+            {activeTab === 'loans' && (
+              <ToolLoanTab 
+                parts={parts}
+                equipments={equipments}
+                loans={loans}
+                onAddLoan={handleAddNewToolLoan}
+                onReturnLoan={handleReturnToolLoan}
+                isSubmitting={isSubmittingLoan}
               />
             )}
 

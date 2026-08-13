@@ -1,4 +1,4 @@
-import { SparePart, Transaction, Equipment, MaintenanceLog } from '../types';
+import { SparePart, Transaction, Equipment, MaintenanceLog, SpareLoan } from '../types';
 
 /**
  * ฟังก์ชันสร้างสเปรดชีต Google Sheet ใหม่ในบัญชีของผู้ใช้
@@ -39,6 +39,12 @@ export async function createNewInventorySpreadsheet(accessToken: string, creator
             properties: {
               title: 'MaintenanceLogs',
               gridProperties: { rowCount: 1000, columnCount: 12 },
+            },
+          },
+          {
+            properties: {
+              title: 'ToolLoans',
+              gridProperties: { rowCount: 1000, columnCount: 15 },
             },
           },
           {
@@ -508,6 +514,7 @@ export async function ensureMaintenanceSheetsExist(accessToken: string, spreadsh
     const requests: any[] = [];
     const hasEquipment = sheetTitles.includes('Equipment');
     const hasLogs = sheetTitles.includes('MaintenanceLogs');
+    const hasLoans = sheetTitles.includes('ToolLoans');
 
     if (!hasEquipment) {
       requests.push({
@@ -521,6 +528,14 @@ export async function ensureMaintenanceSheetsExist(accessToken: string, spreadsh
       requests.push({
         addSheet: {
           properties: { title: 'MaintenanceLogs', gridProperties: { rowCount: 1000, columnCount: 12 } }
+        }
+      });
+    }
+
+    if (!hasLoans) {
+      requests.push({
+        addSheet: {
+          properties: { title: 'ToolLoans', gridProperties: { rowCount: 1000, columnCount: 15 } }
         }
       });
     }
@@ -540,15 +555,15 @@ export async function ensureMaintenanceSheetsExist(accessToken: string, spreadsh
         const valData: any[] = [];
         if (!hasEquipment) {
           valData.push({
-            range: 'Equipment!A1:F1',
-            values: [['รหัสเครื่องจักร', 'ชื่อเครื่องจักร', 'ไลน์ผลิต/ตำแหน่ง', 'ราคาซื้อแรกเริ่ม', 'งบซ่อมสะสมสูงสุดที่รับได้', 'วันที่ซื้อ']]
+            range: 'Equipment!A1:H1',
+            values: [['รหัสเครื่องจักร', 'ชื่อเครื่องจักร', 'ไลน์ผลิต/ตำแหน่ง', 'ราคาซื้อแรกเริ่ม', 'งบซ่อมสะสมสูงสุดที่รับได้', 'วันที่ซื้อ', 'ประเภทเครื่องมือ (Main/Spare)', 'รหัสทรัพย์สิน']]
           });
           valData.push({
-            range: 'Equipment!A2:F4',
+            range: 'Equipment!A2:H4',
             values: [
-              ['EQ-001', 'เครื่องแพ็คซองอัตโนมัติ Pack-01', 'แผนกบรรจุ ไลน์ 1', 120000, 45000, '12/05/2024'],
-              ['EQ-002', 'เครื่องแพ็คกล่องบรรจุภัณฑ์ Carton-02', 'แผนกบรรจุ ไลน์ 2', 250000, 80000, '10/01/2025'],
-              ['EQ-003', 'ปืนลมยิงตะปูอุตสาหกรรม NailGun-05', 'แผนกประกอบไม้', 4500, 2000, '20/11/2025']
+              ['EQ-001', 'เครื่องแพ็คซองอัตโนมัติ Pack-01', 'แผนกบรรจุ ไลน์ 1', 120000, 45000, '12/05/2024', 'Main', 'AST-PACK-001'],
+              ['EQ-002', 'เครื่องแพ็คกล่องบรรจุภัณฑ์ Carton-02', 'แผนกบรรจุ ไลน์ 2', 250000, 80000, '10/01/2025', 'Main', 'AST-CART-002'],
+              ['EQ-003', 'ปืนลมยิงตะปูอุตสาหกรรม (ตัวสำรอง)', 'แผนกประกอบไม้', 4500, 2000, '20/11/2025', 'Spare', 'AST-GUN-003']
             ]
           });
         }
@@ -563,6 +578,21 @@ export async function ensureMaintenanceSheetsExist(accessToken: string, spreadsh
             values: [
               [dateNow, 'EQ-001', 'เครื่องแพ็คซองอัตโนมัติ Pack-01', 'เปลี่ยนกระบอกสูบที่สึกหรอ', 'SP-001', 1, 450, 500, 950, 'ช่างศักดิ์ดา'],
               [dateNow, 'EQ-002', 'เครื่องแพ็คกล่องบรรจุภัณฑ์ Carton-02', 'ซ่อมระบบฮีตเตอร์และใบมีดชำรุด', 'SP-002', 2, 2400, 1500, 3900, 'ช่างชัยชนะ']
+            ]
+          });
+        }
+        if (!hasLoans) {
+          valData.push({
+            range: 'ToolLoans!A1:M1',
+            values: [['รหัสการยืม', 'วันเวลาที่ยืม', 'รหัสอะไหล่/เครื่องมือ', 'ชื่ออะไหล่/เครื่องมือ', 'ไลน์ผลิตที่นำไปใช้', 'ชื่อผู้ยืม', 'จำนวน', 'วัตถุประสงค์', 'สถานะ', 'กำหนดวันคืน', 'วันเวลาที่รับคืน', 'ผู้รับคืน', 'สภาพ/หมายเหตุการรับคืน']]
+          });
+          const nowStr = new Date().toLocaleString('th-TH');
+          const past2Days = new Date(Date.now() - 48 * 3600 * 1000).toLocaleString('th-TH');
+          valData.push({
+            range: 'ToolLoans!A2:M3',
+            values: [
+              ['LOAN-1001', past2Days, 'SP-004', 'ลิ้นปืนลมยิงตะปู (ชุดกระแทก)', 'แผนกประกอบไม้ ไลน์ 2', 'ช่างสมพงษ์', 1, 'นำไปสำรองแทนปืนลมตัวหลักที่ส่งซ่อม', 'กำลังยืม', '15/08/2026', '', '', ''],
+              ['LOAN-1002', nowStr, 'SP-001', 'ลูกสูบกระบอกลมไฮดรอลิก', 'แผนกบรรจุ ไลน์ 1', 'ช่างศักดิ์ดา', 1, 'ยืมสับเปลี่ยนทดสอบไลน์ 1', 'คืนแล้ว', '14/08/2026', nowStr, 'ช่างชัยชนะ', 'คืนเรียบร้อย สภาพสมบูรณ์']
             ]
           });
         }
@@ -590,7 +620,7 @@ export async function ensureMaintenanceSheetsExist(accessToken: string, spreadsh
  */
 export async function fetchEquipmentData(accessToken: string, spreadsheetId: string): Promise<Equipment[]> {
   try {
-    const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Equipment!A2:F500`, {
+    const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Equipment!A2:H500`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
@@ -600,6 +630,9 @@ export async function fetchEquipmentData(accessToken: string, spreadsheetId: str
     const rows = data.values || [];
 
     return rows.map((row: any, index: number) => {
+      const typeVal = row[6] ? String(row[6]).trim() : '';
+      const equipmentType: 'Main' | 'Spare' = (typeVal === 'Spare' || typeVal.toLowerCase() === 'spare' || typeVal.includes('Spare')) ? 'Spare' : 'Main';
+
       return {
         id: row[0] ? String(row[0]).trim() : `EQ-${index + 1}`,
         name: row[1] ? String(row[1]) : 'ไม่ได้ระบุชื่อ',
@@ -607,6 +640,8 @@ export async function fetchEquipmentData(accessToken: string, spreadsheetId: str
         purchasePrice: row[3] ? Number(row[3]) : 0,
         maxRepairBudget: row[4] ? Number(row[4]) : 0,
         purchaseDate: row[5] ? String(row[5]) : '',
+        equipmentType,
+        assetCode: row[7] ? String(row[7]).trim() : '',
       };
     }).filter((eq: Equipment) => eq.id !== '');
   } catch (error) {
@@ -658,11 +693,13 @@ export async function addNewEquipment(
   spreadsheetId: string,
   eq: {
     id: string;
+    assetCode?: string;
     name: string;
     location: string;
     purchasePrice: number;
     maxRepairBudget: number;
     purchaseDate: string;
+    equipmentType?: 'Main' | 'Spare';
   }
 ): Promise<{ success: boolean; newEquipment: Equipment }> {
   try {
@@ -685,12 +722,14 @@ export async function addNewEquipment(
       eq.location.trim(),
       eq.purchasePrice,
       eq.maxRepairBudget,
-      eq.purchaseDate.trim()
+      eq.purchaseDate.trim(),
+      eq.equipmentType || 'Main',
+      eq.assetCode ? eq.assetCode.trim() : ''
     ];
 
     // 2. บันทึกลงในแผ่นงาน "Equipment" (Append ท้ายตาราง)
     const appendResponse = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Equipment!A:F:append?valueInputOption=USER_ENTERED`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Equipment!A:H:append?valueInputOption=USER_ENTERED`,
       {
         method: 'POST',
         headers: {
@@ -710,11 +749,13 @@ export async function addNewEquipment(
 
     const newEquipment: Equipment = {
       id: eq.id.trim().toUpperCase(),
+      assetCode: eq.assetCode ? eq.assetCode.trim() : '',
       name: eq.name.trim(),
       location: eq.location.trim(),
       purchasePrice: eq.purchasePrice,
       maxRepairBudget: eq.maxRepairBudget,
       purchaseDate: eq.purchaseDate.trim(),
+      equipmentType: eq.equipmentType || 'Main',
     };
 
     return {
@@ -933,16 +974,18 @@ export async function updateEquipment(
   spreadsheetId: string,
   eq: {
     id: string;
+    assetCode?: string;
     name: string;
     location: string;
     purchasePrice: number;
     maxRepairBudget: number;
     purchaseDate: string;
+    equipmentType?: 'Main' | 'Spare';
   }
 ): Promise<{ success: boolean; updatedEquipment: Equipment }> {
   try {
     // 1. ดึงข้อมูล Equipment ทั้งหมดเพื่อหาตำแหน่งแถว
-    const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Equipment!A1:F500`, {
+    const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Equipment!A1:H500`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
@@ -966,19 +1009,21 @@ export async function updateEquipment(
       throw new Error(`ไม่พบรหัสเครื่องจักร: ${eq.id} ในระบบ`);
     }
 
-    // เตรียมค่าที่จะบันทึก (คอลัมน์ A ถึง F)
+    // เตรียมค่าที่จะบันทึก (คอลัมน์ A ถึง H)
     const rowValue = [
       eq.id.trim().toUpperCase(),
       eq.name.trim(),
       eq.location.trim(),
       eq.purchasePrice,
       eq.maxRepairBudget,
-      eq.purchaseDate.trim()
+      eq.purchaseDate.trim(),
+      eq.equipmentType || 'Main',
+      eq.assetCode ? eq.assetCode.trim() : ''
     ];
 
-    // 2. ปรับปรุงข้อมูลใน Equipment แถวเดิม ช่วง A{rowIndex}:F{rowIndex}
+    // 2. ปรับปรุงข้อมูลใน Equipment แถวเดิม ช่วง A{rowIndex}:H{rowIndex}
     const updateResponse = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Equipment!A${rowIndex}:F${rowIndex}?valueInputOption=USER_ENTERED`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Equipment!A${rowIndex}:H${rowIndex}?valueInputOption=USER_ENTERED`,
       {
         method: 'PUT',
         headers: {
@@ -998,11 +1043,13 @@ export async function updateEquipment(
 
     const updatedEquipment: Equipment = {
       id: eq.id.trim().toUpperCase(),
+      assetCode: eq.assetCode ? eq.assetCode.trim() : '',
       name: eq.name.trim(),
       location: eq.location.trim(),
       purchasePrice: eq.purchasePrice,
       maxRepairBudget: eq.maxRepairBudget,
       purchaseDate: eq.purchaseDate.trim(),
+      equipmentType: eq.equipmentType || 'Main',
     };
 
     return {
@@ -1365,6 +1412,217 @@ export async function removeAuthorizedUser(
     throw error;
   }
 }
+
+/**
+ * ดึงข้อมูลประวัติการยืม-คืนเครื่องมือ Spare จากชีต ToolLoans
+ */
+export async function fetchToolLoansData(accessToken: string, spreadsheetId: string): Promise<SpareLoan[]> {
+  try {
+    const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/ToolLoans!A2:M1000`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!response.ok) return [];
+
+    const data = await response.json();
+    const rows = data.values || [];
+
+    return rows.map((row: any, idx: number) => {
+      return {
+        id: row[0] ? String(row[0]).trim() : `LOAN-${idx + 1000}`,
+        borrowDate: row[1] ? String(row[1]) : '',
+        partId: row[2] ? String(row[2]) : '',
+        partName: row[3] ? String(row[3]) : '',
+        lineLocation: row[4] ? String(row[4]) : '',
+        borrowerName: row[5] ? String(row[5]) : '',
+        quantity: row[6] ? Number(row[6]) : 1,
+        purposeNote: row[7] ? String(row[7]) : '',
+        status: row[8] === 'คืนแล้ว' ? 'คืนแล้ว' : 'กำลังยืม',
+        expectedReturnDate: row[9] ? String(row[9]) : '',
+        returnDate: row[10] ? String(row[10]) : '',
+        receiverName: row[11] ? String(row[11]) : '',
+        returnNote: row[12] ? String(row[12]) : '',
+      };
+    }).reverse(); // ล่าสุดขึ้นก่อน
+  } catch (error) {
+    console.error('Error fetching tool loans:', error);
+    return [];
+  }
+}
+
+/**
+ * บันทึกรายการยืม Spare เครื่องมือใหม่ลงชีต ToolLoans
+ */
+export async function addNewToolLoan(
+  accessToken: string,
+  spreadsheetId: string,
+  loan: {
+    id?: string;
+    partId: string;
+    partName: string;
+    lineLocation: string;
+    borrowerName: string;
+    quantity: number;
+    purposeNote: string;
+    expectedReturnDate: string;
+  }
+): Promise<{ success: boolean; newLoan: SpareLoan }> {
+  try {
+    const loanId = loan.id || `LOAN-${Date.now().toString().slice(-6)}`;
+    const borrowDate = new Date().toLocaleString('th-TH');
+
+    const rowValue = [
+      loanId,
+      borrowDate,
+      loan.partId,
+      loan.partName,
+      loan.lineLocation,
+      loan.borrowerName,
+      loan.quantity || 1,
+      loan.purposeNote || '',
+      'กำลังยืม',
+      loan.expectedReturnDate || '',
+      '',
+      '',
+      ''
+    ];
+
+    const appendResponse = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/ToolLoans!A:M:append?valueInputOption=USER_ENTERED`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          values: [rowValue],
+        }),
+      }
+    );
+
+    if (!appendResponse.ok) {
+      const errData = await appendResponse.json().catch(() => ({}));
+      throw new Error(errData.error?.message || 'ไม่สามารถบันทึกรายการยืม Spare ลงสเปรดชีตได้');
+    }
+
+    const newLoan: SpareLoan = {
+      id: loanId,
+      borrowDate,
+      partId: loan.partId,
+      partName: loan.partName,
+      lineLocation: loan.lineLocation,
+      borrowerName: loan.borrowerName,
+      quantity: loan.quantity || 1,
+      purposeNote: loan.purposeNote || '',
+      status: 'กำลังยืม',
+      expectedReturnDate: loan.expectedReturnDate || '',
+      returnDate: '',
+      receiverName: '',
+      returnNote: ''
+    };
+
+    return { success: true, newLoan };
+  } catch (error: any) {
+    console.error('addNewToolLoan error:', error);
+    throw error;
+  }
+}
+
+/**
+ * บันทึกรับคืนเครื่องมือ/อะไหล่ Spare จากไลน์ผลิต
+ */
+export async function returnToolLoan(
+  accessToken: string,
+  spreadsheetId: string,
+  loanId: string,
+  returnData: {
+    receiverName: string;
+    returnNote: string;
+  }
+): Promise<{ success: boolean; updatedLoan: SpareLoan }> {
+  try {
+    const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/ToolLoans!A1:M1000`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!response.ok) {
+      throw new Error('ไม่สามารถตรวจสอบข้อมูลรายการยืมก่อนคืนได้');
+    }
+
+    const sheetData = await response.json();
+    const rows = sheetData.values || [];
+
+    let rowIndex = -1;
+    let targetLoan: any = null;
+
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i][0] && String(rows[i][0]).trim().toLowerCase() === loanId.trim().toLowerCase()) {
+        rowIndex = i + 1; // 1-indexed
+        targetLoan = {
+          id: String(rows[i][0]).trim(),
+          borrowDate: String(rows[i][1] || ''),
+          partId: String(rows[i][2] || ''),
+          partName: String(rows[i][3] || ''),
+          lineLocation: String(rows[i][4] || ''),
+          borrowerName: String(rows[i][5] || ''),
+          quantity: Number(rows[i][6] || 1),
+          purposeNote: String(rows[i][7] || ''),
+          status: String(rows[i][8] || 'กำลังยืม'),
+          expectedReturnDate: String(rows[i][9] || ''),
+        };
+        break;
+      }
+    }
+
+    if (rowIndex === -1 || !targetLoan) {
+      throw new Error(`ไม่พบรหัสการยืม: ${loanId} ในระบบ`);
+    }
+
+    const returnDate = new Date().toLocaleString('th-TH');
+
+    // อัปเดตคอลัมน์ I ถึง M (Status, ExpectedReturnDate, ReturnDate, ReceiverName, ReturnNote)
+    const updateValues = [
+      'คืนแล้ว',
+      targetLoan.expectedReturnDate,
+      returnDate,
+      returnData.receiverName,
+      returnData.returnNote
+    ];
+
+    const updateResponse = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/ToolLoans!I${rowIndex}:M${rowIndex}?valueInputOption=USER_ENTERED`,
+      {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          values: [updateValues],
+        }),
+      }
+    );
+
+    if (!updateResponse.ok) {
+      throw new Error('ไม่สามารถบันทึกสถานะรับคืน Spare ลงใน Google Sheets ได้');
+    }
+
+    const updatedLoan: SpareLoan = {
+      ...targetLoan,
+      status: 'คืนแล้ว',
+      returnDate,
+      receiverName: returnData.receiverName,
+      returnNote: returnData.returnNote
+    };
+
+    return { success: true, updatedLoan };
+  } catch (error: any) {
+    console.error('returnToolLoan error:', error);
+    throw error;
+  }
+}
+
 
 
 
