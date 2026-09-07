@@ -39,7 +39,7 @@ import {
   RefreshCw,
   BarChart3
 } from 'lucide-react';
-import { extractMonthKey, formatThaiMonth } from '../utils/dateUtils';
+import { extractMonthKey, formatThaiMonth, parseDateToTimestamp } from '../utils/dateUtils';
 import EquipmentHistoryModal from './EquipmentHistoryModal';
 
 interface DashboardTabProps {
@@ -169,6 +169,12 @@ export default function DashboardTab({
     restockCount: number;
     lastTechnician: string;
     lastTimestamp: string;
+    lastRestockTimestamp: string;
+    lastRestockTimeMs: number;
+    lastRestockTechnician: string;
+    lastWithdrawTimestamp: string;
+    lastWithdrawTimeMs: number;
+    lastWithdrawTechnician: string;
     machineNote: string;
   }
 
@@ -190,25 +196,44 @@ export default function DashboardTab({
       restockCount: 0,
       lastTechnician: tx.technician || '-',
       lastTimestamp: tx.timestamp || '-',
+      lastRestockTimestamp: '-',
+      lastRestockTimeMs: 0,
+      lastRestockTechnician: '-',
+      lastWithdrawTimestamp: '-',
+      lastWithdrawTimeMs: 0,
+      lastWithdrawTechnician: '-',
       machineNote: tx.machineNote || '-'
     };
 
     const unitPrice = matchedPart?.price || 0;
+    const txTime = parseDateToTimestamp(tx.timestamp);
 
     if (tx.type === 'เบิกจ่าย') {
       existing.totalWithdrawn += tx.quantity;
       existing.withdrawnValue += tx.quantity * unitPrice;
       existing.withdrawCount += 1;
+      if (txTime >= existing.lastWithdrawTimeMs) {
+        existing.lastWithdrawTimeMs = txTime;
+        existing.lastWithdrawTimestamp = tx.timestamp || existing.lastWithdrawTimestamp;
+        existing.lastWithdrawTechnician = tx.technician || existing.lastWithdrawTechnician;
+        if (tx.machineNote) {
+          existing.machineNote = tx.machineNote;
+        }
+      }
     } else if (tx.type === 'รับเข้า') {
       existing.totalRestocked += tx.quantity;
       existing.restockedValue += tx.quantity * unitPrice;
       existing.restockCount += 1;
+      if (txTime >= existing.lastRestockTimeMs) {
+        existing.lastRestockTimeMs = txTime;
+        existing.lastRestockTimestamp = tx.timestamp || existing.lastRestockTimestamp;
+        existing.lastRestockTechnician = tx.technician || existing.lastRestockTechnician;
+      }
     }
 
-    existing.lastTechnician = tx.technician || existing.lastTechnician;
-    existing.lastTimestamp = tx.timestamp || existing.lastTimestamp;
-    if (tx.machineNote) {
-      existing.machineNote = tx.machineNote;
+    if (txTime >= parseDateToTimestamp(existing.lastTimestamp)) {
+      existing.lastTimestamp = tx.timestamp || existing.lastTimestamp;
+      existing.lastTechnician = tx.technician || existing.lastTechnician;
     }
 
     partMovementMap.set(tx.partId, existing);
@@ -224,17 +249,29 @@ export default function DashboardTab({
       pm.partName.toLowerCase().includes(q) ||
       pm.category.toLowerCase().includes(q) ||
       pm.lastTechnician.toLowerCase().includes(q) ||
+      pm.lastRestockTechnician.toLowerCase().includes(q) ||
+      pm.lastRestockTimestamp.toLowerCase().includes(q) ||
       pm.machineNote.toLowerCase().includes(q)
     );
   });
 
+  // รายการเบิกอะไหล่ เรียงลำดับตามวันเวลาเบิกล่าสุดขึ้นก่อน
   const withdrawnPartsList = filteredPartMovements
     .filter(pm => pm.totalWithdrawn > 0)
-    .sort((a, b) => b.totalWithdrawn - a.totalWithdrawn);
+    .sort((a, b) => {
+      const diff = b.lastWithdrawTimeMs - a.lastWithdrawTimeMs;
+      if (diff !== 0) return diff;
+      return b.totalWithdrawn - a.totalWithdrawn;
+    });
 
+  // รายการเติมสต็อกอะไหล่ เรียงลำดับตามวันเวลาเติมสต็อกล่าสุดขึ้นก่อนเสมอ (วันล่าสุดอยู่บนสุด และไล่ลำดับตามวันเวลา)
   const restockedPartsList = filteredPartMovements
     .filter(pm => pm.totalRestocked > 0)
-    .sort((a, b) => b.totalRestocked - a.totalRestocked);
+    .sort((a, b) => {
+      const diff = b.lastRestockTimeMs - a.lastRestockTimeMs;
+      if (diff !== 0) return diff;
+      return b.totalRestocked - a.totalRestocked;
+    });
 
   // ข้อมูลกราฟเปรียบเทียบแนวโน้มเบิกจ่าย vs รับเข้า รายเดือน
   const monthlyComparisonData = availableMonths.slice(0, 12).reverse().map(mKey => {
@@ -729,7 +766,9 @@ export default function DashboardTab({
                         <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
                           ฿{pm.withdrawnValue.toLocaleString()}
                         </td>
-                        <td className="py-2.5 px-3 font-semibold text-slate-700">{pm.lastTechnician}</td>
+                        <td className="py-2.5 px-3 font-semibold text-slate-700">
+                          {pm.lastWithdrawTechnician !== '-' ? pm.lastWithdrawTechnician : pm.lastTechnician}
+                        </td>
                         <td className="py-2.5 px-3 text-slate-500 text-[11px] truncate max-w-[160px]">{pm.machineNote}</td>
                       </tr>
                     ))
@@ -754,7 +793,14 @@ export default function DashboardTab({
                     <th className="py-2.5 px-3 text-right">ราคา/หน่วย</th>
                     <th className="py-2.5 px-3 text-right">มูลค่ารวมที่เติม</th>
                     <th className="py-2.5 px-3">ผู้บันทึก/ช่าง</th>
-                    <th className="py-2.5 px-3">วันเวลาเติมล่าสุด</th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        <span>วันเวลาเติมล่าสุด</span>
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-200 text-emerald-800 shadow-xs">
+                          วันล่าสุดอยู่บน ⬇
+                        </span>
+                      </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 bg-white text-slate-700">
@@ -783,8 +829,12 @@ export default function DashboardTab({
                         <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
                           ฿{pm.restockedValue.toLocaleString()}
                         </td>
-                        <td className="py-2.5 px-3 font-semibold text-slate-700">{pm.lastTechnician}</td>
-                        <td className="py-2.5 px-3 font-mono text-slate-500 text-[11px]">{pm.lastTimestamp}</td>
+                        <td className="py-2.5 px-3 font-semibold text-slate-700">
+                          {pm.lastRestockTechnician !== '-' ? pm.lastRestockTechnician : pm.lastTechnician}
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-emerald-950 font-bold text-[11px] whitespace-nowrap bg-emerald-50/60">
+                          {pm.lastRestockTimestamp !== '-' ? pm.lastRestockTimestamp : pm.lastTimestamp}
+                        </td>
                       </tr>
                     ))
                   )}
@@ -1085,7 +1135,9 @@ export default function DashboardTab({
                   </td>
                 </tr>
               ) : (
-                transactions.map((tx, idx) => (
+                [...transactions]
+                  .sort((a, b) => parseDateToTimestamp(b.timestamp) - parseDateToTimestamp(a.timestamp))
+                  .map((tx, idx) => (
                   <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
                     <td className="py-3 px-4 font-mono text-slate-500">{tx.timestamp}</td>
                     <td className="py-3 px-4 font-mono font-bold text-slate-700">{tx.partId}</td>

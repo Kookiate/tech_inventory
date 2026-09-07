@@ -80,3 +80,44 @@ export function formatThaiDate(dateStr: string): string {
   }
   return dateStr;
 }
+
+/**
+ * แปลงสตริงวันที่และเวลา (รวมถึงปี พ.ศ. เช่น 5/8/2569 17:39:16 หรือ ค.ศ.) ให้เป็นตัวเลข Timestamp (มิลลิวินาที)
+ * เพื่อใช้ในการจัดเรียงลำดับวันเวลาล่าสุดขึ้นก่อนได้อย่างแม่นยำ 100%
+ */
+export function parseDateToTimestamp(dateStr: string): number {
+  if (!dateStr || dateStr === '-' || typeof dateStr !== 'string') return 0;
+
+  const trimmed = dateStr.trim();
+  if (!trimmed) return 0;
+
+  // 1. รูปแบบ DD/MM/YYYY หรือ DD-MM-YYYY พร้อมเวลา HH:mm:ss หรือ HH:mm (เช่น 5/8/2569 17:39:16, 24/07/2569 15:32:16)
+  const dmyMatch = trimmed.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?:[,\s]+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+  if (dmyMatch) {
+    const day = parseInt(dmyMatch[1], 10);
+    const month = parseInt(dmyMatch[2], 10) - 1;
+    let year = parseInt(dmyMatch[3], 10);
+    if (year > 2400) year -= 543; // แปลง พ.ศ. เป็น ค.ศ.
+    const hour = dmyMatch[4] ? parseInt(dmyMatch[4], 10) : 0;
+    const min = dmyMatch[5] ? parseInt(dmyMatch[5], 10) : 0;
+    const sec = dmyMatch[6] ? parseInt(dmyMatch[6], 10) : 0;
+    return new Date(year, month, day, hour, min, sec).getTime();
+  }
+
+  // 2. รูปแบบ YYYY-MM-DD หรือ YYYY/MM/DD พร้อมเวลา (เช่น 2026-08-05 17:39:16, 2569-08-05T17:39:16)
+  const ymdMatch = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[T\s]+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+  if (ymdMatch) {
+    let year = parseInt(ymdMatch[1], 10);
+    if (year > 2400) year -= 543;
+    const month = parseInt(ymdMatch[2], 10) - 1;
+    const day = parseInt(ymdMatch[3], 10);
+    const hour = ymdMatch[4] ? parseInt(ymdMatch[4], 10) : 0;
+    const min = ymdMatch[5] ? parseInt(ymdMatch[5], 10) : 0;
+    const sec = ymdMatch[6] ? parseInt(ymdMatch[6], 10) : 0;
+    return new Date(year, month, day, hour, min, sec).getTime();
+  }
+
+  // 3. Fallback ใช้ Date.parse
+  const fallback = Date.parse(trimmed);
+  return isNaN(fallback) ? 0 : fallback;
+}
