@@ -66,6 +66,7 @@ export default function DashboardTab({
   
   // State for Spare Part Movement Section
   const [movementTab, setMovementTab] = useState<'withdraw' | 'restock' | 'trend'>('withdraw');
+  const [trendMode, setTrendMode] = useState<'value' | 'qty'>('value');
   const [movementSearch, setMovementSearch] = useState<string>('');
 
   // State for Equipment History Modal
@@ -153,6 +154,7 @@ export default function DashboardTab({
   }, 0);
 
   const netQtyMovement = totalRestockQty - totalWithdrawQty;
+  const netValueMovement = totalRestockValue - totalWithdrawValue;
 
   // รวบรวมสถิติความเคลื่อนไหวแยกรายรหัสอะไหล่สำหรับเดือนที่เลือก
   interface PartMovementSummary {
@@ -607,59 +609,131 @@ export default function DashboardTab({
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           
           {/* Withdrawn Metric */}
-          <div className="bg-rose-50/70 rounded-2xl p-4 border border-rose-200/80 flex items-center justify-between shadow-2xs">
-            <div className="space-y-1">
-              <p className="text-[11px] font-bold text-rose-700 uppercase tracking-wider flex items-center gap-1 font-sans">
-                <ArrowDownLeft className="h-3.5 w-3.5 text-rose-600" />
-                ยอดเบิกจ่ายอะไหล่รวม
-              </p>
-              <h4 className="text-2xl font-bold font-mono text-rose-700">
-                {totalWithdrawQty.toLocaleString()} <span className="text-xs font-normal font-sans">ชิ้น</span>
-              </h4>
-              <p className="text-[11px] text-rose-600/90 font-sans font-medium">
-                {withdrawnPartsList.length} รายการรหัส | มูลค่า ฿{totalWithdrawValue.toLocaleString()}
-              </p>
+          <div className="bg-gradient-to-br from-rose-50/90 via-rose-50/40 to-white rounded-2xl p-4.5 border border-rose-200 shadow-xs flex flex-col justify-between hover:shadow-md transition-all">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-7 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                  <ArrowDownLeft className="h-4 w-4" />
+                </div>
+                <p className="text-[11px] font-bold text-rose-800 uppercase tracking-wider font-sans">
+                  ยอดเบิกจ่ายอะไหล่รวม
+                </p>
+              </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-mono">
+                {withdrawnPartsList.length} รายการรหัส
+              </span>
             </div>
-            <div className="h-11 w-11 bg-rose-100/80 text-rose-600 rounded-xl flex items-center justify-center border border-rose-200 shrink-0">
-              <PackageMinus className="h-5 w-5" />
+
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-rose-200/60">
+              <div className="space-y-0.5">
+                <p className="text-[10px] font-bold text-rose-600 uppercase tracking-wider font-sans flex items-center gap-1">
+                  <Coins className="h-3 w-3" /> มูลค่าที่เบิก
+                </p>
+                <h4 className="text-xl sm:text-2xl font-bold font-mono text-rose-700">
+                  ฿{totalWithdrawValue.toLocaleString()}
+                </h4>
+              </div>
+              <div className="space-y-0.5 border-l border-rose-200/60 pl-3">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-sans flex items-center gap-1">
+                  <PackageMinus className="h-3 w-3" /> จำนวนที่เบิก
+                </p>
+                <h4 className="text-xl sm:text-2xl font-bold font-mono text-slate-800">
+                  {totalWithdrawQty.toLocaleString()} <span className="text-xs font-normal font-sans text-slate-500">ชิ้น</span>
+                </h4>
+              </div>
+            </div>
+
+            <div className="mt-2.5 pt-2 border-t border-rose-100 flex items-center justify-between text-[11px] text-rose-700 font-medium">
+              <span>เฉลี่ยมูลค่าต่อชิ้น:</span>
+              <span className="font-mono font-bold">
+                ฿{totalWithdrawQty > 0 ? Math.round(totalWithdrawValue / totalWithdrawQty).toLocaleString() : 0} / ชิ้น
+              </span>
             </div>
           </div>
 
           {/* Restocked Metric */}
-          <div className="bg-emerald-50/70 rounded-2xl p-4 border border-emerald-200/80 flex items-center justify-between shadow-2xs">
-            <div className="space-y-1">
-              <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider flex items-center gap-1 font-sans">
-                <ArrowUpRight className="h-3.5 w-3.5 text-emerald-600" />
-                ยอดเติม Stock อะไหล่รวม
-              </p>
-              <h4 className="text-2xl font-bold font-mono text-emerald-700">
-                {totalRestockQty.toLocaleString()} <span className="text-xs font-normal font-sans">ชิ้น</span>
-              </h4>
-              <p className="text-[11px] text-emerald-600/90 font-sans font-medium">
-                {restockedPartsList.length} รายการรหัส | มูลค่า ฿{totalRestockValue.toLocaleString()}
-              </p>
+          <div className="bg-gradient-to-br from-emerald-50/90 via-emerald-50/40 to-white rounded-2xl p-4.5 border border-emerald-200 shadow-xs flex flex-col justify-between hover:shadow-md transition-all">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-7 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                  <ArrowUpRight className="h-4 w-4" />
+                </div>
+                <p className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider font-sans">
+                  ยอดเติม Stock อะไหล่รวม
+                </p>
+              </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-mono">
+                {restockedPartsList.length} รายการรหัส
+              </span>
             </div>
-            <div className="h-11 w-11 bg-emerald-100/80 text-emerald-600 rounded-xl flex items-center justify-center border border-emerald-200 shrink-0">
-              <PackagePlus className="h-5 w-5" />
+
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-emerald-200/60">
+              <div className="space-y-0.5">
+                <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider font-sans flex items-center gap-1">
+                  <Coins className="h-3 w-3" /> มูลค่าที่เติม
+                </p>
+                <h4 className="text-xl sm:text-2xl font-bold font-mono text-emerald-700">
+                  ฿{totalRestockValue.toLocaleString()}
+                </h4>
+              </div>
+              <div className="space-y-0.5 border-l border-emerald-200/60 pl-3">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-sans flex items-center gap-1">
+                  <PackagePlus className="h-3 w-3" /> จำนวนที่เติม
+                </p>
+                <h4 className="text-xl sm:text-2xl font-bold font-mono text-slate-800">
+                  +{totalRestockQty.toLocaleString()} <span className="text-xs font-normal font-sans text-slate-500">ชิ้น</span>
+                </h4>
+              </div>
+            </div>
+
+            <div className="mt-2.5 pt-2 border-t border-emerald-100 flex items-center justify-between text-[11px] text-emerald-700 font-medium">
+              <span>เฉลี่ยมูลค่าต่อชิ้น:</span>
+              <span className="font-mono font-bold">
+                ฿{totalRestockQty > 0 ? Math.round(totalRestockValue / totalRestockQty).toLocaleString() : 0} / ชิ้น
+              </span>
             </div>
           </div>
 
           {/* Net Movement Metric */}
-          <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 flex items-center justify-between shadow-2xs">
-            <div className="space-y-1">
-              <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1 font-sans">
-                <Activity className="h-3.5 w-3.5 text-slate-500" />
-                ผลต่างสุทธิ (Net Delta)
-              </p>
-              <h4 className={`text-2xl font-bold font-mono ${netQtyMovement >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                {netQtyMovement >= 0 ? `+${netQtyMovement.toLocaleString()}` : netQtyMovement.toLocaleString()} <span className="text-xs font-normal text-slate-500 font-sans">ชิ้น</span>
-              </h4>
-              <p className="text-[11px] text-slate-500 font-sans font-medium">
-                {netQtyMovement >= 0 ? '🟢 เติม Stock เพิ่มขึ้นสุทธิ' : '🔴 เบิกไปใช้มากกว่าการเติม Stock'}
-              </p>
+          <div className="bg-gradient-to-br from-slate-50 via-slate-50/50 to-white rounded-2xl p-4.5 border border-slate-200 shadow-xs flex flex-col justify-between hover:shadow-md transition-all">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-7 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                  <Activity className="h-4 w-4" />
+                </div>
+                <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wider font-sans">
+                  ผลต่างสุทธิ (Net Delta)
+                </p>
+              </div>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full font-sans ${netValueMovement >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                {netValueMovement >= 0 ? '🟢 เติมมูลค่าเพิ่มขึ้น' : '🔴 เบิกมูลค่ามากกว่า'}
+              </span>
             </div>
-            <div className="h-11 w-11 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center border border-slate-200 shrink-0">
-              <RefreshCw className="h-5 w-5" />
+
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200/60">
+              <div className="space-y-0.5">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-sans flex items-center gap-1">
+                  <Coins className="h-3 w-3" /> ส่วนต่างมูลค่า
+                </p>
+                <h4 className={`text-xl sm:text-2xl font-bold font-mono ${netValueMovement >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                  {netValueMovement >= 0 ? `+฿${netValueMovement.toLocaleString()}` : `-฿${Math.abs(netValueMovement).toLocaleString()}`}
+                </h4>
+              </div>
+              <div className="space-y-0.5 border-l border-slate-200/60 pl-3">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-sans flex items-center gap-1">
+                  <RefreshCw className="h-3 w-3" /> ส่วนต่างจำนวน
+                </p>
+                <h4 className={`text-xl sm:text-2xl font-bold font-mono ${netQtyMovement >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {netQtyMovement >= 0 ? `+${netQtyMovement.toLocaleString()}` : netQtyMovement.toLocaleString()} <span className="text-xs font-normal font-sans text-slate-500">ชิ้น</span>
+                </h4>
+              </div>
+            </div>
+
+            <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
+              <span>สถานะภาพรวม:</span>
+              <span className={`font-semibold ${netQtyMovement >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                {netQtyMovement >= 0 ? 'คลังอะไหล่มีสต็อกเพิ่มสุทธิ' : 'เบิกอะไหล่ใช้มากกว่าเติม'}
+              </span>
             </div>
           </div>
 
@@ -680,6 +754,11 @@ export default function DashboardTab({
             >
               <PackageMinus className="h-3.5 w-3.5" />
               <span>รายการเบิกอะไหล่ ({withdrawnPartsList.length})</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
+                movementTab === 'withdraw' ? 'bg-rose-700 text-rose-100' : 'bg-rose-100 text-rose-700'
+              }`}>
+                ฿{totalWithdrawValue.toLocaleString()}
+              </span>
             </button>
 
             <button
@@ -692,6 +771,11 @@ export default function DashboardTab({
             >
               <PackagePlus className="h-3.5 w-3.5" />
               <span>รายการเติม Stock ({restockedPartsList.length})</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
+                movementTab === 'restock' ? 'bg-emerald-700 text-emerald-100' : 'bg-emerald-100 text-emerald-700'
+              }`}>
+                ฿{totalRestockValue.toLocaleString()}
+              </span>
             </button>
 
             <button
@@ -735,7 +819,7 @@ export default function DashboardTab({
                     <th className="py-2.5 px-3">หมวดหมู่</th>
                     <th className="py-2.5 px-3 text-right">จำนวนที่เบิกในเดือนนี้</th>
                     <th className="py-2.5 px-3 text-right">ราคา/หน่วย</th>
-                    <th className="py-2.5 px-3 text-right">มูลค่ารวมที่เบิก</th>
+                    <th className="py-2.5 px-3 text-right bg-rose-200/50 text-rose-950 font-bold">มูลค่ารวมที่เบิก</th>
                     <th className="py-2.5 px-3">ช่างผู้เบิก/ล่าสุด</th>
                     <th className="py-2.5 px-3">เครื่องจักร / หมายเหตุ</th>
                   </tr>
@@ -763,7 +847,7 @@ export default function DashboardTab({
                         <td className="py-2.5 px-3 text-right font-mono text-slate-500">
                           ฿{pm.price.toLocaleString()}
                         </td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-700 bg-rose-50/70">
                           ฿{pm.withdrawnValue.toLocaleString()}
                         </td>
                         <td className="py-2.5 px-3 font-semibold text-slate-700">
@@ -774,6 +858,27 @@ export default function DashboardTab({
                     ))
                   )}
                 </tbody>
+                {withdrawnPartsList.length > 0 && (
+                  <tfoot className="bg-rose-100/90 text-rose-950 font-bold border-t-2 border-rose-300 sticky bottom-0">
+                    <tr>
+                      <td colSpan={3} className="py-2.5 px-3 font-sans">
+                        รวมยอดเบิกทั้งหมด ({withdrawnPartsList.length} รายการรหัส)
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono text-rose-700">
+                        -{totalWithdrawQty.toLocaleString()} ชิ้น
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono text-slate-500 text-[11px]">
+                        เฉลี่ย ฿{totalWithdrawQty > 0 ? Math.round(totalWithdrawValue / totalWithdrawQty).toLocaleString() : 0}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono text-rose-900 text-sm font-bold bg-rose-200/80">
+                        ฿{totalWithdrawValue.toLocaleString()}
+                      </td>
+                      <td colSpan={2} className="py-2.5 px-3 text-slate-600 text-[11px] font-normal">
+                        รวมมูลค่าอะไหล่ที่เบิก
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           </div>
@@ -791,7 +896,7 @@ export default function DashboardTab({
                     <th className="py-2.5 px-3">หมวดหมู่</th>
                     <th className="py-2.5 px-3 text-right">จำนวนที่เติม Stock ในเดือนนี้</th>
                     <th className="py-2.5 px-3 text-right">ราคา/หน่วย</th>
-                    <th className="py-2.5 px-3 text-right">มูลค่ารวมที่เติม</th>
+                    <th className="py-2.5 px-3 text-right bg-emerald-200/50 text-emerald-950 font-bold">มูลค่ารวมที่เติม</th>
                     <th className="py-2.5 px-3">ผู้บันทึก/ช่าง</th>
                     <th className="py-2.5 px-3 whitespace-nowrap">
                       <div className="flex items-center gap-1.5">
@@ -826,7 +931,7 @@ export default function DashboardTab({
                         <td className="py-2.5 px-3 text-right font-mono text-slate-500">
                           ฿{pm.price.toLocaleString()}
                         </td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-700 bg-emerald-50/70">
                           ฿{pm.restockedValue.toLocaleString()}
                         </td>
                         <td className="py-2.5 px-3 font-semibold text-slate-700">
@@ -839,6 +944,27 @@ export default function DashboardTab({
                     ))
                   )}
                 </tbody>
+                {restockedPartsList.length > 0 && (
+                  <tfoot className="bg-emerald-100/90 text-emerald-950 font-bold border-t-2 border-emerald-300 sticky bottom-0">
+                    <tr>
+                      <td colSpan={3} className="py-2.5 px-3 font-sans">
+                        รวมยอดเติมทั้งหมด ({restockedPartsList.length} รายการรหัส)
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono text-emerald-700">
+                        +{totalRestockQty.toLocaleString()} ชิ้น
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono text-slate-500 text-[11px]">
+                        เฉลี่ย ฿{totalRestockQty > 0 ? Math.round(totalRestockValue / totalRestockQty).toLocaleString() : 0}
+                      </td>
+                      <td className="py-2.5 px-3 text-right font-mono text-emerald-900 text-sm font-bold bg-emerald-200/80">
+                        ฿{totalRestockValue.toLocaleString()}
+                      </td>
+                      <td colSpan={2} className="py-2.5 px-3 text-slate-600 text-[11px] font-normal">
+                        รวมมูลค่าอะไหล่ที่เติม Stock
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           </div>
@@ -847,6 +973,38 @@ export default function DashboardTab({
         {/* Tab 3: Monthly Trend Comparison Bar Chart */}
         {movementTab === 'trend' && (
           <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1">
+              <span className="text-xs text-slate-500 font-sans font-medium">
+                เปรียบเทียบความเคลื่อนไหวคลังอะไหล่ย้อนหลังรายเดือน
+              </span>
+              <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setTrendMode('value')}
+                  className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+                    trendMode === 'value'
+                      ? 'bg-white text-indigo-700 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <Coins className="h-3.5 w-3.5" />
+                  <span>กราฟมูลค่า (บาท)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTrendMode('qty')}
+                  className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+                    trendMode === 'qty'
+                      ? 'bg-white text-indigo-700 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <PackageMinus className="h-3.5 w-3.5" />
+                  <span>กราฟจำนวน (ชิ้น)</span>
+                </button>
+              </div>
+            </div>
+
             <div className="h-64">
               {monthlyComparisonData.length === 0 ? (
                 <div className="h-full flex items-center justify-center">
@@ -865,16 +1023,29 @@ export default function DashboardTab({
                     />
                     <YAxis 
                       tick={{ fontFamily: 'Sarabun', fontSize: 10 }}
+                      tickFormatter={(val) => trendMode === 'value' ? `฿${val >= 1000 ? `${(val/1000).toFixed(0)}k` : val}` : String(val)}
                     />
                     <Tooltip 
-                      formatter={(value, name) => [`${Number(value).toLocaleString()} ชิ้น`, name]}
+                      formatter={(value, name) => [
+                        trendMode === 'value' ? `฿${Number(value).toLocaleString()}` : `${Number(value).toLocaleString()} ชิ้น`, 
+                        name
+                      ]}
                       contentStyle={{ fontFamily: 'Sarabun', fontSize: '11px', borderRadius: '8px' }}
                     />
                     <Legend 
                       wrapperStyle={{ fontFamily: 'Sarabun', fontSize: '11px', fontWeight: 'bold', paddingTop: '10px' }} 
                     />
-                    <Bar dataKey="totalWithdrawn" name="ยอดเบิกจ่ายอะไหล่ (ชิ้น)" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="totalRestocked" name="ยอดเติม Stock อะไหล่ (ชิ้น)" fill="#10b981" radius={[4, 4, 0, 0]} />
+                    {trendMode === 'value' ? (
+                      <>
+                        <Bar dataKey="withdrawnValue" name="มูลค่าเบิกจ่ายอะไหล่ (บาท)" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="restockedValue" name="มูลค่าเติม Stock อะไหล่ (บาท)" fill="#10b981" radius={[4, 4, 0, 0]} />
+                      </>
+                    ) : (
+                      <>
+                        <Bar dataKey="totalWithdrawn" name="ยอดเบิกจ่ายอะไหล่ (ชิ้น)" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="totalRestocked" name="ยอดเติม Stock อะไหล่ (ชิ้น)" fill="#10b981" radius={[4, 4, 0, 0]} />
+                      </>
+                    )}
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -1123,6 +1294,8 @@ export default function DashboardTab({
                 <th className="py-3 px-4 font-bold">ชื่ออะไหล่</th>
                 <th className="py-3 px-4 text-center font-bold">ประเภท</th>
                 <th className="py-3 px-4 text-right font-bold">จำนวน</th>
+                <th className="py-3 px-4 text-right font-bold">ราคา/หน่วย</th>
+                <th className="py-3 px-4 text-right font-bold">มูลค่ารวม (฿)</th>
                 <th className="py-3 px-4 font-bold">ช่างเทคนิค</th>
                 <th className="py-3 px-4 font-bold">เครื่องจักร / ไลน์</th>
               </tr>
@@ -1130,36 +1303,49 @@ export default function DashboardTab({
             <tbody className="divide-y divide-slate-200 bg-white font-sans text-slate-600">
               {transactions.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-400 font-sans">
+                  <td colSpan={9} className="py-8 text-center text-slate-400 font-sans">
                     ยังไม่มีข้อมูลประวัติรายการเคลื่อนไหว
                   </td>
                 </tr>
               ) : (
                 [...transactions]
                   .sort((a, b) => parseDateToTimestamp(b.timestamp) - parseDateToTimestamp(a.timestamp))
-                  .map((tx, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="py-3 px-4 font-mono text-slate-500">{tx.timestamp}</td>
-                    <td className="py-3 px-4 font-mono font-bold text-slate-700">{tx.partId}</td>
-                    <td className="py-3 px-4 font-semibold text-slate-800">{tx.partName}</td>
-                    <td className="py-3 px-4 text-center">
-                      <span className={`inline-block px-2.5 py-1 rounded-full font-bold text-[10px] ${
-                        tx.type === 'เบิกจ่าย' 
-                          ? 'bg-rose-50 text-rose-700 border border-rose-100' 
-                          : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                      }`}>
-                        {tx.type}
-                      </span>
-                    </td>
-                    <td className={`py-3 px-4 text-right font-mono font-bold ${
-                      tx.type === 'เบิกจ่าย' ? 'text-red-600' : 'text-emerald-700'
-                    }`}>
-                      {tx.type === 'เบิกจ่าย' ? '-' : '+'}{tx.quantity}
-                    </td>
-                    <td className="py-3 px-4 font-semibold text-slate-700">{tx.technician}</td>
-                    <td className="py-3 px-4 text-slate-500 font-sans">{tx.machineNote}</td>
-                  </tr>
-                ))
+                  .map((tx, idx) => {
+                    const matchedPart = parts.find(p => p.id === tx.partId);
+                    const unitPrice = matchedPart?.price || 0;
+                    const txValue = tx.quantity * unitPrice;
+                    return (
+                      <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="py-3 px-4 font-mono text-slate-500">{tx.timestamp}</td>
+                        <td className="py-3 px-4 font-mono font-bold text-slate-700">{tx.partId}</td>
+                        <td className="py-3 px-4 font-semibold text-slate-800">{tx.partName}</td>
+                        <td className="py-3 px-4 text-center">
+                          <span className={`inline-block px-2.5 py-1 rounded-full font-bold text-[10px] ${
+                            tx.type === 'เบิกจ่าย' 
+                              ? 'bg-rose-50 text-rose-700 border border-rose-100' 
+                              : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                          }`}>
+                            {tx.type}
+                          </span>
+                        </td>
+                        <td className={`py-3 px-4 text-right font-mono font-bold ${
+                          tx.type === 'เบิกจ่าย' ? 'text-red-600' : 'text-emerald-700'
+                        }`}>
+                          {tx.type === 'เบิกจ่าย' ? '-' : '+'}{tx.quantity}
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono text-slate-500">
+                          ฿{unitPrice.toLocaleString()}
+                        </td>
+                        <td className={`py-3 px-4 text-right font-mono font-bold ${
+                          tx.type === 'เบิกจ่าย' ? 'text-rose-600' : 'text-emerald-700'
+                        }`}>
+                          ฿{txValue.toLocaleString()}
+                        </td>
+                        <td className="py-3 px-4 font-semibold text-slate-700">{tx.technician}</td>
+                        <td className="py-3 px-4 text-slate-500 font-sans">{tx.machineNote}</td>
+                      </tr>
+                    );
+                  })
               )}
             </tbody>
           </table>
