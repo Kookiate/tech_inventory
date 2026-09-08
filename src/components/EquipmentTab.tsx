@@ -1,7 +1,24 @@
 import React, { useState } from 'react';
 import { Equipment, MaintenanceLog, SparePart } from '../types';
-import { PenTool, Plus, Search, Calendar, DollarSign, ShieldAlert, Cpu, FileText, Printer } from 'lucide-react';
+import { 
+  PenTool, 
+  Plus, 
+  Search, 
+  Calendar, 
+  DollarSign, 
+  ShieldAlert, 
+  Cpu, 
+  FileText, 
+  Printer, 
+  QrCode, 
+  ClipboardCheck, 
+  Layers, 
+  Tag 
+} from 'lucide-react';
 import EquipmentHistoryModal from './EquipmentHistoryModal';
+import EquipmentStickerModal from './EquipmentStickerModal';
+import AssetCheckModal from './AssetCheckModal';
+import EquipmentBatchStickerModal from './EquipmentBatchStickerModal';
 
 interface EquipmentTabProps {
   equipments: Equipment[];
@@ -41,6 +58,11 @@ export default function EquipmentTab({
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [historyModalEqId, setHistoryModalEqId] = useState<string | null>(null);
+
+  // Asset QR sticker and audit modals
+  const [selectedEquipmentForSticker, setSelectedEquipmentForSticker] = useState<Equipment | null>(null);
+  const [showAuditModal, setShowAuditModal] = useState(false);
+  const [showBatchModal, setShowBatchModal] = useState(false);
 
   // Form states
   const [id, setId] = useState('');
@@ -172,14 +194,39 @@ export default function EquipmentTab({
           </p>
         </div>
 
-        <button
-          id="btn-toggle-eq-form"
-          onClick={() => setShowAddForm(!showAddForm)}
-          className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md transition-all self-start sm:self-auto"
-        >
-          <Plus className="h-4 w-4" />
-          {showAddForm ? 'ปิดฟอร์มกรอกข้อมูล' : 'ลงทะเบียนเครื่องจักรใหม่'}
-        </button>
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+          <button
+            id="btn-scan-asset-audit"
+            type="button"
+            onClick={() => setShowAuditModal(true)}
+            className="flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-md transition-all active:scale-95 cursor-pointer"
+            title="สแกน QR Code หรือ Barcode เพื่อตรวจเช็คทรัพย์สินเครื่องมือ"
+          >
+            <ClipboardCheck className="h-4 w-4" />
+            <span>สแกนตรวจเช็คทรัพย์สิน</span>
+          </button>
+
+          <button
+            id="btn-batch-stickers"
+            type="button"
+            onClick={() => setShowBatchModal(true)}
+            className="flex items-center justify-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3.5 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer"
+            title="พิมพ์สติกเกอร์ QR สำหรับติดเครื่องมือแบบหลายรายการ"
+          >
+            <Layers className="h-4 w-4 text-indigo-600" />
+            <span>พิมพ์สติกเกอร์หลายรายการ</span>
+          </button>
+
+          <button
+            id="btn-toggle-eq-form"
+            type="button"
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-md transition-all active:scale-95 cursor-pointer"
+          >
+            <Plus className="h-4 w-4" />
+            <span>{showAddForm ? 'ปิดฟอร์มกรอกข้อมูล' : 'ลงทะเบียนเครื่องใหม่'}</span>
+          </button>
+        </div>
       </div>
 
       {/* ฟอร์มเพิ่มเครื่องจักรใหม่ */}
@@ -473,11 +520,25 @@ export default function EquipmentTab({
                       <td className="py-3.5 px-4 font-mono font-bold text-blue-600 align-middle">{eq.id}</td>
                       <td className="py-3.5 px-4 font-mono text-slate-700 align-middle">
                         {eq.assetCode ? (
-                          <span className="px-2 py-0.5 bg-slate-100 rounded text-[11px] font-semibold text-slate-800 border border-slate-200">
-                            {eq.assetCode}
-                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedEquipmentForSticker(eq)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-800 rounded-lg text-[11px] font-mono font-bold border border-blue-200 transition-all cursor-pointer group shadow-2xs"
+                            title="คลิกเพื่อเปิดสติกเกอร์ QR / Barcode ของรหัสทรัพย์สินนี้"
+                          >
+                            <span>{eq.assetCode}</span>
+                            <QrCode className="h-3 w-3 text-blue-500 group-hover:text-blue-700 transition-colors" />
+                          </button>
                         ) : (
-                          <span className="text-slate-400 text-[11px]">-</span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedEquipmentForSticker(eq)}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-dashed border-slate-300 hover:border-blue-300 transition-all cursor-pointer"
+                            title="ยังไม่มีรหัสทรัพย์สิน คลิกเพื่อสร้างสติกเกอร์ QR หรือกำหนดรหัส"
+                          >
+                            <span>+ สร้าง QR</span>
+                            <QrCode className="h-3 w-3 text-slate-400" />
+                          </button>
                         )}
                       </td>
                       <td className="py-3.5 px-4 font-semibold text-slate-800 align-middle">{eq.name}</td>
@@ -504,6 +565,14 @@ export default function EquipmentTab({
                       </td>
                       <td className="py-3.5 px-4 text-center align-middle whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => setSelectedEquipmentForSticker(eq)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[11px] font-bold border border-indigo-200 transition-all cursor-pointer shadow-2xs"
+                            title="สร้างสติกเกอร์ QR Code / Barcode เพื่อติดเครื่องมือและตรวจเช็คทรัพย์สิน"
+                          >
+                            <QrCode className="h-3.5 w-3.5 text-indigo-600" />
+                            <span>สติกเกอร์ QR</span>
+                          </button>
                           <button
                             onClick={() => setHistoryModalEqId(eq.id)}
                             className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-[11px] font-bold border border-blue-200 transition-all cursor-pointer shadow-2xs"
@@ -539,6 +608,49 @@ export default function EquipmentTab({
           equipments={equipments}
           maintenanceLogs={maintenanceLogs}
           parts={parts}
+        />
+      )}
+
+      {/* Modal สติกเกอร์ QR / Barcode ประจำเครื่องมือเดี่ยว */}
+      {selectedEquipmentForSticker && (
+        <EquipmentStickerModal
+          equipment={selectedEquipmentForSticker}
+          onClose={() => setSelectedEquipmentForSticker(null)}
+          onUpdateEquipment={onUpdateEquipment}
+          onOpenHistory={(eqId) => {
+            setSelectedEquipmentForSticker(null);
+            setHistoryModalEqId(eqId);
+          }}
+        />
+      )}
+
+      {/* Modal สแกนตรวจเช็คทรัพย์สิน (Asset Audit Scanner) */}
+      {showAuditModal && (
+        <AssetCheckModal
+          equipments={equipments}
+          maintenanceLogs={maintenanceLogs}
+          parts={parts}
+          onClose={() => setShowAuditModal(false)}
+          onOpenSticker={(eq) => {
+            setShowAuditModal(false);
+            setSelectedEquipmentForSticker(eq);
+          }}
+          onOpenHistory={(eqId) => {
+            setShowAuditModal(false);
+            setHistoryModalEqId(eqId);
+          }}
+          onEditEquipment={(eq) => {
+            setShowAuditModal(false);
+            startEdit(eq);
+          }}
+        />
+      )}
+
+      {/* Modal พิมพ์สติกเกอร์หลายรายการ (Batch Print) */}
+      {showBatchModal && (
+        <EquipmentBatchStickerModal
+          equipments={equipments}
+          onClose={() => setShowBatchModal(false)}
         />
       )}
     </div>
