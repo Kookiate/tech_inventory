@@ -28,6 +28,7 @@ interface AssetCheckModalProps {
   onOpenSticker: (eq: Equipment) => void;
   onOpenHistory?: (eqId: string) => void;
   onEditEquipment?: (eq: Equipment) => void;
+  onOpenMonthlyInspection?: (eq: Equipment) => void;
 }
 
 interface AuditRecord {
@@ -47,7 +48,8 @@ export default function AssetCheckModal({
   onClose,
   onOpenSticker,
   onOpenHistory,
-  onEditEquipment
+  onEditEquipment,
+  onOpenMonthlyInspection
 }: AssetCheckModalProps) {
   // Input search mode: camera scanner or manual / barcode gun
   const [activeTab, setActiveTab] = useState<'camera' | 'manual'>('camera');
@@ -474,6 +476,18 @@ export default function AssetCheckModal({
                   >
                     <FileText className="h-3.5 w-3.5" />
                     <span>ประวัติซ่อม</span>
+                  </button>
+                )}
+
+                {onOpenMonthlyInspection && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenMonthlyInspection(matchedEquipment)}
+                    className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold border border-emerald-300 transition-all flex items-center gap-1 cursor-pointer"
+                    title="เปิดแบบบันทึกตรวจเช็คเครื่องมือประจำเดือน (PM Checklist)"
+                  >
+                    <ClipboardCheck className="h-3.5 w-3.5 text-emerald-600" />
+                    <span>ตรวจเช็ค PM</span>
                   </button>
                 )}
 

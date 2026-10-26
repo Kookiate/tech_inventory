@@ -34,6 +34,7 @@ import AppsScriptExportTab from './components/AppsScriptExportTab';
 import EquipmentTab from './components/EquipmentTab';
 import MaintenanceTab from './components/MaintenanceTab';
 import ToolLoanTab from './components/ToolLoanTab';
+import InspectionTab from './components/InspectionTab';
 import TelegramSettingsModal from './components/TelegramSettingsModal';
 import UnauthorizedView from './components/UnauthorizedView';
 import PermissionsTab from './components/PermissionsTab';
@@ -56,7 +57,8 @@ import {
   Send,
   Bell,
   Shield,
-  Repeat
+  Repeat,
+  ClipboardCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -82,10 +84,11 @@ export default function App() {
   const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLog[]>([]);
   const [loans, setLoans] = useState<SpareLoan[]>([]);
   
-  const [activeTab, setActiveTab] = useState<'transaction' | 'inventory' | 'equipment' | 'maintenance' | 'loans' | 'dashboard' | 'appsscript' | 'permissions'>('transaction');
+  const [activeTab, setActiveTab] = useState<'transaction' | 'inventory' | 'equipment' | 'inspection' | 'maintenance' | 'loans' | 'dashboard' | 'appsscript' | 'permissions'>('transaction');
   
-  // ย้ายส่งรหัสเบิกด่วน
+  // ย้ายส่งรหัสเบิกด่วน และรหัสเครื่องตรวจเช็ค PM ด่วน
   const [preSelectedPartId, setPreSelectedPartId] = useState<string | undefined>(undefined);
+  const [preSelectedInspectionEqId, setPreSelectedInspectionEqId] = useState<string | undefined>(undefined);
 
   // สถานะโหลดเดอร์และกล่องแจ้งเตือน
   const [isLoadingData, setIsLoadingData] = useState(false);
@@ -1007,6 +1010,22 @@ export default function App() {
 
             <button
               onClick={() => {
+                setActiveTab('inspection');
+                loadAllData(token!, spreadsheetId);
+              }}
+              className={`flex-1 min-w-[130px] px-3 sm:px-4 py-3 border-b-4 flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === 'inspection' 
+                  ? 'text-blue-600 border-blue-600 font-bold bg-blue-50/40' 
+                  : 'text-slate-600 border-transparent hover:border-slate-300 hover:bg-slate-50 font-medium'
+              }`}
+              title="ตรวจเช็คและประเมินเครื่องมือประจำเดือน พร้อมเลือกแบบฟอร์ม"
+            >
+              <ClipboardCheck className="h-4 w-4 shrink-0 text-emerald-500" />
+              <span>แบบตรวจเช็ค PM</span>
+            </button>
+
+            <button
+              onClick={() => {
                 setActiveTab('maintenance');
                 loadAllData(token!, spreadsheetId);
               }}
@@ -1123,6 +1142,30 @@ export default function App() {
                 onAddEquipment={handleAddNewEquipment}
                 onUpdateEquipment={handleUpdateEquipment}
                 isSubmitting={isSubmittingEq}
+                onGoToSpareLoan={() => {
+                  setActiveTab('loans');
+                }}
+                onGoToMaintenance={() => {
+                  setActiveTab('maintenance');
+                }}
+                onGoToInspection={(eqId) => {
+                  setPreSelectedInspectionEqId(eqId);
+                  setActiveTab('inspection');
+                }}
+              />
+            )}
+
+            {activeTab === 'inspection' && (
+              <InspectionTab 
+                equipments={equipments}
+                parts={parts}
+                preSelectedEquipmentId={preSelectedInspectionEqId}
+                onGoToSpareLoan={() => {
+                  setActiveTab('loans');
+                }}
+                onGoToMaintenance={() => {
+                  setActiveTab('maintenance');
+                }}
               />
             )}
 

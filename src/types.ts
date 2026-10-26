@@ -30,6 +30,7 @@ export interface Equipment {
   maxRepairBudget: number; // งบซ่อมสะสมสูงสุดที่รับได้ (หรือราคาเปลี่ยนเครื่องใหม่)
   purchaseDate: string; // วันที่ติดตั้ง/ซื้อ
   equipmentType?: 'Main' | 'Spare'; // ประเภทเครื่องมือ (Main = เครื่องมือหลัก, Spare = เครื่องมือสำรอง)
+  category?: string; // หมวดหมู่อุปกรณ์
 }
 
 export interface MaintenanceLog {
@@ -66,4 +67,57 @@ export interface SpareLoan {
   returnDate?: string; // วันเวลาที่รับคืน
   receiverName?: string; // ผู้รับคืน
   returnNote?: string; // สภาพอุปกรณ์/หมายเหตุการรับคืน
+}
+
+export type InspectionResultStatus = 'pass' | 'fail' | 'none';
+
+export interface MonthlyCheckMonthData {
+  itemResults: Record<number, InspectionResultStatus>; // itemIndex (1-7) -> 'pass' | 'fail' | 'none'
+  issuesNote?: string;
+  technicianName?: string;
+  technicianDate?: string;
+  // ข้อมูลสำหรับผู้ตรวจสอบซ้ำ (Re-inspector / Engineer / Checker)
+  engineerName?: string;
+  reInspectedDate?: string;
+  reInspectionStatus?: 'verified' | 'needs_correction' | 'pending';
+  reInspectionNote?: string;
+  // ผู้อนุมัติ (Manager)
+  managerName?: string;
+  managerDate?: string;
+  checkedDate?: string;
+  isSpareSwapped?: boolean; // ระบุว่ามีการนำเครื่อง Spare มาสับเปลี่ยนหรือไม่
+}
+
+export interface InspectionCheckItem {
+  id: number;
+  title: string;
+  subDetail?: string;
+  hasVisualGuide?: boolean;
+}
+
+export interface InspectionFormTemplate {
+  id: string; // e.g. 'manual_strapping_no_seal', 'nail_gun', 'pneumatic_strapping_plastic', 'strapping_with_seal'
+  title: string;
+  shortName: string;
+  category: string;
+  iconName?: string;
+  description: string;
+  standardsNote?: string;
+  imageUrl?: string;
+  checkItems: InspectionCheckItem[];
+  matchingKeywords: string[];
+}
+
+export interface EquipmentMonthlyInspectionRecord {
+  id: string; // e.g. "INSP-EQ001-2026"
+  equipmentId: string;
+  equipmentName: string;
+  assetCode?: string;
+  serialNo?: string;
+  equipmentType?: string; // e.g. 'เครื่องแพ็คสายรัดพลาสติก'
+  formId?: string; // e.g. 'strapping_machine'
+  formTitle?: string;
+  year: number; // e.g. 2026
+  months: Record<number, MonthlyCheckMonthData>; // 1 to 12
+  lastUpdated?: string;
 }

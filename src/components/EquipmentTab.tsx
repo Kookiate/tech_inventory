@@ -13,12 +13,16 @@ import {
   QrCode, 
   ClipboardCheck, 
   Layers, 
-  Tag 
+  Tag,
+  CalendarCheck,
+  ClipboardList
 } from 'lucide-react';
 import EquipmentHistoryModal from './EquipmentHistoryModal';
 import EquipmentStickerModal from './EquipmentStickerModal';
 import AssetCheckModal from './AssetCheckModal';
 import EquipmentBatchStickerModal from './EquipmentBatchStickerModal';
+import MonthlyEquipmentInspectionModal from './MonthlyEquipmentInspectionModal';
+import { isStrappingMachine } from '../utils/inspectionStorage';
 
 interface EquipmentTabProps {
   equipments: Equipment[];
@@ -45,6 +49,9 @@ interface EquipmentTabProps {
     equipmentType?: 'Main' | 'Spare';
   }) => Promise<void>;
   isSubmitting: boolean;
+  onGoToSpareLoan?: (equipment: Equipment) => void;
+  onGoToMaintenance?: (equipment: Equipment, problemDetail: string) => void;
+  onGoToInspection?: (equipmentId?: string) => void;
 }
 
 export default function EquipmentTab({ 
@@ -53,7 +60,10 @@ export default function EquipmentTab({
   parts = [], 
   onAddEquipment, 
   onUpdateEquipment, 
-  isSubmitting 
+  isSubmitting,
+  onGoToSpareLoan,
+  onGoToMaintenance,
+  onGoToInspection
 }: EquipmentTabProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
@@ -63,6 +73,11 @@ export default function EquipmentTab({
   const [selectedEquipmentForSticker, setSelectedEquipmentForSticker] = useState<Equipment | null>(null);
   const [showAuditModal, setShowAuditModal] = useState(false);
   const [showBatchModal, setShowBatchModal] = useState(false);
+
+  // Monthly Equipment PM Inspection modal
+  const [showInspectionModal, setShowInspectionModal] = useState(false);
+  const [inspectionEquipmentId, setInspectionEquipmentId] = useState<string | null>(null);
+  const [strappingFilter, setStrappingFilter] = useState<'all' | 'strapping'>('all');
 
   // Form states
   const [id, setId] = useState('');
@@ -173,12 +188,19 @@ export default function EquipmentTab({
     }
   };
 
-  const filteredEquipment = equipments.filter(eq =>
-    eq.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (eq.assetCode && eq.assetCode.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    eq.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    eq.location.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const strappingCount = equipments.filter(isStrappingMachine).length;
+
+  const filteredEquipment = equipments.filter(eq => {
+    const matchesSearch = eq.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (eq.assetCode && eq.assetCode.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      eq.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      eq.location.toLowerCase().includes(searchTerm.toLowerCase());
+    if (!matchesSearch) return false;
+    if (strappingFilter === 'strapping') {
+      return isStrappingMachine(eq);
+    }
+    return true;
+  });
 
   return (
     <div className="space-y-6">
@@ -196,21 +218,42 @@ export default function EquipmentTab({
 
         <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
           <button
+            id="btn-monthly-inspection"
+            type="button"
+            onClick={() => {
+              if (onGoToInspection) {
+                onGoToInspection();
+              } else {
+                setInspectionEquipmentId(null);
+                setShowInspectionModal(true);
+              }
+            }}
+            className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-md transition-all active:scale-95 cursor-pointer"
+            title="เปิดหน้าระบบตรวจเช็คและประเมินเครื่องมือประจำเดือน (PM Inspection) พร้อมเลือกแบบฟอร์ม"
+          >
+            <CalendarCheck className="h-4 w-4" />
+            <span>ระบบตรวจเช็ค PM (เลือกฟอร์ม)</span>
+            <span className="ml-0.5 px-1.5 py-0.5 bg-emerald-800/80 rounded-full text-[10px] font-mono">
+              {equipments.length} เครื่อง
+            </span>
+          </button>
+
+          <button
             id="btn-scan-asset-audit"
             type="button"
             onClick={() => setShowAuditModal(true)}
-            className="flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-md transition-all active:scale-95 cursor-pointer"
+            className="flex items-center justify-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 px-3 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer"
             title="สแกน QR Code หรือ Barcode เพื่อตรวจเช็คทรัพย์สินเครื่องมือ"
           >
-            <ClipboardCheck className="h-4 w-4" />
-            <span>สแกนตรวจเช็คทรัพย์สิน</span>
+            <ClipboardCheck className="h-4 w-4 text-emerald-600" />
+            <span>สแกนตรวจนับทรัพย์สิน</span>
           </button>
 
           <button
             id="btn-batch-stickers"
             type="button"
             onClick={() => setShowBatchModal(true)}
-            className="flex items-center justify-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3.5 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer"
+            className="flex items-center justify-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer"
             title="พิมพ์สติกเกอร์ QR สำหรับติดเครื่องมือแบบหลายรายการ"
           >
             <Layers className="h-4 w-4 text-indigo-600" />
@@ -389,8 +432,45 @@ export default function EquipmentTab({
           </div>
 
           <div className="text-xs text-slate-500 font-sans flex items-center gap-2">
-            <span>แสดงผลเครื่องจักร <strong>{filteredEquipment.length}</strong> จาก <strong>{equipments.length}</strong> รายการคุมคลัง</span>
+            <span>แสดงผล <strong>{filteredEquipment.length}</strong> จาก <strong>{equipments.length}</strong> รายการ</span>
           </div>
+        </div>
+
+        {/* แถบกรองหมวดหมู่เฉพาะเครื่องแพ็คสายรัดพลาสติก */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-600">ประเภทเครื่องมือ:</span>
+            <button
+              type="button"
+              onClick={() => setStrappingFilter('all')}
+              className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                strappingFilter === 'all'
+                  ? 'bg-slate-800 text-white shadow-2xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              ทั้งหมด ({equipments.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStrappingFilter('strapping')}
+              className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                strappingFilter === 'strapping'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
+              }`}
+            >
+              <CalendarCheck className="h-3.5 w-3.5" />
+              <span>เฉพาะเครื่องแพ็คสายรัดพลาสติก ({strappingCount})</span>
+              <span className="text-[10px] opacity-80">(มีแบบฟอร์มตรวจเช็ค PM)</span>
+            </button>
+          </div>
+
+          {strappingFilter === 'strapping' && (
+            <div className="text-[11px] text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+              💡 กรองแสดงเฉพาะเครื่องแพ็คสายรัดพลาสติกที่มีระบบตรวจเช็ค PM ประจำเดือน (7 รายการตามมาตรฐาน)
+            </div>
+          )}
         </div>
 
         {/* ตารางแสดงผลเครื่องจักร */}
@@ -515,6 +595,8 @@ export default function EquipmentTab({
                     );
                   }
 
+                  const isStrapping = isStrappingMachine(eq);
+
                   return (
                     <tr key={eq.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="py-3.5 px-4 font-mono font-bold text-blue-600 align-middle">{eq.id}</td>
@@ -541,7 +623,16 @@ export default function EquipmentTab({
                           </button>
                         )}
                       </td>
-                      <td className="py-3.5 px-4 font-semibold text-slate-800 align-middle">{eq.name}</td>
+                      <td className="py-3.5 px-4 font-semibold text-slate-800 align-middle">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span>{eq.name}</span>
+                          {isStrapping && (
+                            <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              เครื่องแพ็คสายรัด
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="py-3.5 px-4 text-slate-600 font-sans align-middle">{eq.location}</td>
                       <td className="py-3.5 px-4 text-center align-middle whitespace-nowrap">
                         {eq.equipmentType === 'Spare' ? (
@@ -565,6 +656,25 @@ export default function EquipmentTab({
                       </td>
                       <td className="py-3.5 px-4 text-center align-middle whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => {
+                              if (onGoToInspection) {
+                                onGoToInspection(eq.id);
+                              } else {
+                                setInspectionEquipmentId(eq.id);
+                                setShowInspectionModal(true);
+                              }
+                            }}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold shadow-xs transition-all cursor-pointer active:scale-95 ${
+                              isStrapping 
+                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white' 
+                                : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200'
+                            }`}
+                            title={isStrapping ? 'แบบตรวจเช็คเครื่องแพ็คสายรัดพลาสติกตาม Excel (7 ข้อ)' : 'ตรวจเช็คและประเมินเครื่องมือ PM ประจำเดือน (เลือกแบบฟอร์ม)'}
+                          >
+                            <ClipboardList className="h-3.5 w-3.5" />
+                            <span>{isStrapping ? 'ตรวจเช็ค PM สายรัด' : 'ตรวจเช็ค PM'}</span>
+                          </button>
                           <button
                             onClick={() => setSelectedEquipmentForSticker(eq)}
                             className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[11px] font-bold border border-indigo-200 transition-all cursor-pointer shadow-2xs"
@@ -643,6 +753,11 @@ export default function EquipmentTab({
             setShowAuditModal(false);
             startEdit(eq);
           }}
+          onOpenMonthlyInspection={(eq) => {
+            setShowAuditModal(false);
+            setInspectionEquipmentId(eq.id);
+            setShowInspectionModal(true);
+          }}
         />
       )}
 
@@ -651,6 +766,28 @@ export default function EquipmentTab({
         <EquipmentBatchStickerModal
           equipments={equipments}
           onClose={() => setShowBatchModal(false)}
+        />
+      )}
+
+      {/* Modal แบบบันทึกการตรวจสอบเครื่องมือแพ็คสายรัดพลาสติกประจำเดือน */}
+      {showInspectionModal && (
+        <MonthlyEquipmentInspectionModal
+          isOpen={showInspectionModal}
+          onClose={() => setShowInspectionModal(false)}
+          equipments={equipments}
+          initialEquipmentId={inspectionEquipmentId || undefined}
+          onGoToSpareLoan={(eq) => {
+            setShowInspectionModal(false);
+            if (onGoToSpareLoan) {
+              onGoToSpareLoan(eq);
+            }
+          }}
+          onGoToMaintenance={(eq, detail) => {
+            setShowInspectionModal(false);
+            if (onGoToMaintenance) {
+              onGoToMaintenance(eq, detail);
+            }
+          }}
         />
       )}
     </div>
