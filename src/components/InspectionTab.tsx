@@ -213,12 +213,43 @@ export default function InspectionTab({
     loadMonthDataIntoForm(record, entryMonth, template);
   }, [currentEquipment?.id, selectedYear]);
 
+  // Listen for storage updates from other components / cloud sync
+  useEffect(() => {
+    const handleStorageUpdate = () => {
+      if (!currentEquipment) return;
+      const assignedFormId = getEquipmentAssignedFormId(currentEquipment.id, currentEquipment);
+      const template = getFormTemplateById(assignedFormId);
+      const record = getOrCreateEquipmentInspection(
+        currentEquipment.id,
+        currentEquipment.name,
+        currentEquipment.assetCode,
+        selectedYear,
+        template.shortName,
+        assignedFormId
+      );
+      setInspectionRecord(record);
+    };
+    window.addEventListener('inspection-records-updated', handleStorageUpdate);
+    return () => window.removeEventListener('inspection-records-updated', handleStorageUpdate);
+  }, [currentEquipment?.id, selectedYear]);
+
   // When entryMonth changes, load that month's data
   useEffect(() => {
-    if (inspectionRecord && activeFormTemplate) {
-      loadMonthDataIntoForm(inspectionRecord, entryMonth, activeFormTemplate);
+    if (currentEquipment) {
+      const assignedFormId = getEquipmentAssignedFormId(currentEquipment.id, currentEquipment);
+      const template = getFormTemplateById(assignedFormId);
+      const record = getOrCreateEquipmentInspection(
+        currentEquipment.id,
+        currentEquipment.name,
+        currentEquipment.assetCode,
+        selectedYear,
+        template.shortName,
+        assignedFormId
+      );
+      setInspectionRecord(record);
+      loadMonthDataIntoForm(record, entryMonth, template);
     }
-  }, [entryMonth]);
+  }, [entryMonth, currentEquipment?.id, selectedYear]);
 
   const loadMonthDataIntoForm = (
     record: EquipmentMonthlyInspectionRecord, 
@@ -302,22 +333,21 @@ export default function InspectionTab({
     setInspectionRecord(updatedRecord);
   };
 
-  // Save monthly entry form
-  const handleSaveEntryForm = () => {
+  // Auto-save helper method that persists form changes immediately to storage
+  const saveCurrentMonthData = (overrides: Partial<MonthlyCheckMonthData> = {}) => {
     if (!currentEquipment) return;
-
     const monthData: MonthlyCheckMonthData = {
-      itemResults: entryResults,
-      issuesNote: entryIssues.trim(),
-      technicianName: entryTechName.trim(),
-      technicianDate: entryCheckedDate,
-      engineerName: entryEngName.trim(),
-      reInspectedDate: entryReInspectedDate,
-      reInspectionStatus: entryReInspectionStatus,
-      reInspectionNote: entryReInspectionNote.trim(),
-      managerName: entryMgrName.trim(),
-      checkedDate: entryCheckedDate,
-      isSpareSwapped: entryIsSpareSwapped
+      itemResults: overrides.itemResults !== undefined ? overrides.itemResults : entryResults,
+      issuesNote: overrides.issuesNote !== undefined ? overrides.issuesNote : entryIssues.trim(),
+      technicianName: overrides.technicianName !== undefined ? overrides.technicianName : entryTechName.trim(),
+      technicianDate: overrides.technicianDate !== undefined ? overrides.technicianDate : entryCheckedDate,
+      engineerName: overrides.engineerName !== undefined ? overrides.engineerName : entryEngName.trim(),
+      reInspectedDate: overrides.reInspectedDate !== undefined ? overrides.reInspectedDate : entryReInspectedDate,
+      reInspectionStatus: overrides.reInspectionStatus !== undefined ? overrides.reInspectionStatus : entryReInspectionStatus,
+      reInspectionNote: overrides.reInspectionNote !== undefined ? overrides.reInspectionNote : entryReInspectionNote.trim(),
+      managerName: overrides.managerName !== undefined ? overrides.managerName : entryMgrName.trim(),
+      checkedDate: overrides.checkedDate !== undefined ? overrides.checkedDate : entryCheckedDate,
+      isSpareSwapped: overrides.isSpareSwapped !== undefined ? overrides.isSpareSwapped : entryIsSpareSwapped
     };
 
     const updatedRecord = updateMonthCheckData(
@@ -330,27 +360,38 @@ export default function InspectionTab({
       activeFormTemplate.id
     );
     setInspectionRecord(updatedRecord);
+  };
 
+  // Save monthly entry form with user feedback
+  const handleSaveEntryForm = () => {
+    if (!currentEquipment) return;
+    saveCurrentMonthData();
     setIsSavedSuccess(true);
     setTimeout(() => setIsSavedSuccess(false), 2500);
   };
 
-  // Mark all pass in entry form
+  // Mark all pass in entry form & auto save
   const handleMarkAllPass = () => {
     const allPassed: Record<number, InspectionResultStatus> = {};
     activeFormTemplate.checkItems.forEach(item => {
       allPassed[item.id] = 'pass';
     });
     setEntryResults(allPassed);
+    saveCurrentMonthData({ itemResults: allPassed });
   };
 
-  // Quick verify button for Re-inspector
+  // Quick verify button for Re-inspector & auto save
   const handleQuickReInspectVerify = () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const note = entryReInspectionNote || 'สุ่มทดสอบการทำงานหน้างานตามเกณฑ์มาตรฐานแล้ว ผลตรวจผ่านเกณฑ์สมบูรณ์';
     setEntryReInspectionStatus('verified');
-    setEntryReInspectedDate(new Date().toISOString().slice(0, 10));
-    if (!entryReInspectionNote) {
-      setEntryReInspectionNote('สุ่มทดสอบการทำงานหน้างานตามเกณฑ์มาตรฐานแล้ว ผลตรวจผ่านเกณฑ์สมบูรณ์');
-    }
+    setEntryReInspectedDate(today);
+    setEntryReInspectionNote(note);
+    saveCurrentMonthData({
+      reInspectionStatus: 'verified',
+      reInspectedDate: today,
+      reInspectionNote: note
+    });
   };
 
   // Export CSV
@@ -1045,7 +1086,11 @@ export default function InspectionTab({
                     <div className="flex items-center gap-1.5 shrink-0">
                       <button
                         type="button"
-                        onClick={() => setEntryResults(prev => ({ ...prev, [item.id]: 'pass' }))}
+                        onClick={() => {
+                          const next = { ...entryResults, [item.id]: 'pass' as InspectionResultStatus };
+                          setEntryResults(next);
+                          saveCurrentMonthData({ itemResults: next });
+                        }}
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
                           currentStatus === 'pass'
                             ? 'bg-emerald-600 text-white shadow-sm'
@@ -1058,7 +1103,11 @@ export default function InspectionTab({
 
                       <button
                         type="button"
-                        onClick={() => setEntryResults(prev => ({ ...prev, [item.id]: 'fail' }))}
+                        onClick={() => {
+                          const next = { ...entryResults, [item.id]: 'fail' as InspectionResultStatus };
+                          setEntryResults(next);
+                          saveCurrentMonthData({ itemResults: next });
+                        }}
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
                           currentStatus === 'fail'
                             ? 'bg-rose-600 text-white shadow-sm'
@@ -1071,7 +1120,11 @@ export default function InspectionTab({
 
                       <button
                         type="button"
-                        onClick={() => setEntryResults(prev => ({ ...prev, [item.id]: 'none' }))}
+                        onClick={() => {
+                          const next = { ...entryResults, [item.id]: 'none' as InspectionResultStatus };
+                          setEntryResults(next);
+                          saveCurrentMonthData({ itemResults: next });
+                        }}
                         className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                           currentStatus === 'none'
                             ? 'bg-slate-700 text-white'
@@ -1099,7 +1152,11 @@ export default function InspectionTab({
             </label>
             <textarea
               value={entryIssues}
-              onChange={(e) => setEntryIssues(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setEntryIssues(val);
+                saveCurrentMonthData({ issuesNote: val });
+              }}
               placeholder="เช่น แรงดันลมตก, รอยเชื่อมไม่ติด, เป่าเศษฝุ่นสายรัดสะอาดแล้ว, หรือส่งซ่อม..."
               rows={2}
               className="w-full p-3 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-sans focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs"
@@ -1111,7 +1168,11 @@ export default function InspectionTab({
                 <input
                   type="checkbox"
                   checked={entryIsSpareSwapped}
-                  onChange={(e) => setEntryIsSpareSwapped(e.target.checked)}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setEntryIsSpareSwapped(checked);
+                    saveCurrentMonthData({ isSpareSwapped: checked });
+                  }}
                   className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
                 />
                 <span>มีการนำเครื่องสำรอง (Spare) มาสับเปลี่ยนใช้งานแทน</span>
@@ -1150,7 +1211,11 @@ export default function InspectionTab({
                 <input
                   type="text"
                   value={entryTechName}
-                  onChange={(e) => setEntryTechName(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setEntryTechName(val);
+                    saveCurrentMonthData({ technicianName: val });
+                  }}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -1160,7 +1225,11 @@ export default function InspectionTab({
                 <input
                   type="date"
                   value={entryCheckedDate}
-                  onChange={(e) => setEntryCheckedDate(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setEntryCheckedDate(val);
+                    saveCurrentMonthData({ checkedDate: val, technicianDate: val });
+                  }}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -1202,7 +1271,10 @@ export default function InspectionTab({
                 <div className="grid grid-cols-2 gap-1.5">
                   <button
                     type="button"
-                    onClick={() => setEntryReInspectionStatus('verified')}
+                    onClick={() => {
+                      setEntryReInspectionStatus('verified');
+                      saveCurrentMonthData({ reInspectionStatus: 'verified' });
+                    }}
                     className={`py-1.5 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
                       entryReInspectionStatus === 'verified'
                         ? 'bg-emerald-600 text-white shadow-xs'
@@ -1215,7 +1287,10 @@ export default function InspectionTab({
 
                   <button
                     type="button"
-                    onClick={() => setEntryReInspectionStatus('needs_correction')}
+                    onClick={() => {
+                      setEntryReInspectionStatus('needs_correction');
+                      saveCurrentMonthData({ reInspectionStatus: 'needs_correction' });
+                    }}
                     className={`py-1.5 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer ${
                       entryReInspectionStatus === 'needs_correction'
                         ? 'bg-rose-600 text-white shadow-xs'
@@ -1233,7 +1308,11 @@ export default function InspectionTab({
                 <input
                   type="text"
                   value={entryEngName}
-                  onChange={(e) => setEntryEngName(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setEntryEngName(val);
+                    saveCurrentMonthData({ engineerName: val });
+                  }}
                   className="w-full px-3 py-2 bg-white border border-indigo-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
@@ -1243,7 +1322,11 @@ export default function InspectionTab({
                 <input
                   type="date"
                   value={entryReInspectedDate}
-                  onChange={(e) => setEntryReInspectedDate(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setEntryReInspectedDate(val);
+                    saveCurrentMonthData({ reInspectedDate: val });
+                  }}
                   className="w-full px-3 py-2 bg-white border border-indigo-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
@@ -1255,7 +1338,11 @@ export default function InspectionTab({
                 <input
                   type="text"
                   value={entryReInspectionNote}
-                  onChange={(e) => setEntryReInspectionNote(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setEntryReInspectionNote(val);
+                    saveCurrentMonthData({ reInspectionNote: val });
+                  }}
                   placeholder="เช่น สุ่มดึงรอยเชื่อมหน้างานแล้ว แน่นหนาดี / ถ่ายน้ำกรองลมแล้ว..."
                   className="w-full px-3 py-2 bg-white border border-indigo-200 rounded-lg text-xs font-sans text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
@@ -1289,7 +1376,11 @@ export default function InspectionTab({
                 <input
                   type="text"
                   value={entryMgrName}
-                  onChange={(e) => setEntryMgrName(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setEntryMgrName(val);
+                    saveCurrentMonthData({ managerName: val });
+                  }}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>

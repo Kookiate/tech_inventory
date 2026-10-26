@@ -1,4 +1,6 @@
 import { EquipmentMonthlyInspectionRecord, MonthlyCheckMonthData, InspectionResultStatus } from '../types';
+import { getAccessToken } from './auth';
+import { savePMInspectionRecordToSheet } from './sheets';
 
 export interface InspectionCheckItem {
   id: number;
@@ -320,7 +322,9 @@ export function getEquipmentAssignedFormId(equipmentId: string, fallbackEquipmen
     const raw = localStorage.getItem(ASSIGNED_FORMS_KEY);
     if (raw) {
       const map = JSON.parse(raw);
-      if (map[equipmentId]) return map[equipmentId];
+      const cleanId = String(equipmentId || '').trim();
+      if (map[cleanId]) return map[cleanId];
+      if (map[cleanId.toLowerCase()]) return map[cleanId.toLowerCase()];
     }
   } catch (e) {
     console.error('Failed to load assigned forms:', e);
@@ -335,7 +339,8 @@ export function setEquipmentAssignedFormId(equipmentId: string, formId: string):
   try {
     const raw = localStorage.getItem(ASSIGNED_FORMS_KEY);
     const map = raw ? JSON.parse(raw) : {};
-    map[equipmentId] = formId;
+    const cleanId = String(equipmentId || '').trim();
+    map[cleanId] = formId;
     localStorage.setItem(ASSIGNED_FORMS_KEY, JSON.stringify(map));
   } catch (e) {
     console.error('Failed to save assigned form:', e);
@@ -518,14 +523,71 @@ export function loadInspectionRecords(): EquipmentMonthlyInspectionRecord[] {
 }
 
 /**
- * Save all inspection records to localStorage
+ * Save all inspection records to localStorage and sync to Google Sheets if connected
  */
 export function saveInspectionRecords(records: EquipmentMonthlyInspectionRecord[]): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('inspection-records-updated'));
+    }
+
+    // Background sync to Google Sheets if user is logged in with spreadsheet ID
+    const token = getAccessToken();
+    const spreadsheetId = localStorage.getItem('spare_part_spreadsheet_id');
+    if (token && spreadsheetId) {
+      records.forEach(r => {
+        savePMInspectionRecordToSheet(token, spreadsheetId, r).catch(err => {
+          console.warn('Background sync PM record error:', err);
+        });
+      });
+    }
   } catch (e) {
     console.error('Failed to save inspection records:', e);
   }
+}
+
+/**
+ * Merge remote inspection records from Google Sheets into local storage
+ */
+export function mergeRemoteInspectionRecords(remoteRecords: EquipmentMonthlyInspectionRecord[]): EquipmentMonthlyInspectionRecord[] {
+  if (!remoteRecords || remoteRecords.length === 0) return loadInspectionRecords();
+  
+  const local = loadInspectionRecords();
+  const map = new Map<string, EquipmentMonthlyInspectionRecord>();
+
+  local.forEach(r => {
+    const key = `${String(r.equipmentId || '').trim().toLowerCase()}_${r.year}`;
+    map.set(key, r);
+  });
+
+  remoteRecords.forEach(remote => {
+    const key = `${String(remote.equipmentId || '').trim().toLowerCase()}_${remote.year}`;
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, remote);
+    } else {
+      // Merge month data
+      const mergedMonths = { ...existing.months, ...(remote.months || {}) };
+      map.set(key, {
+        ...existing,
+        ...remote,
+        months: mergedMonths,
+        lastUpdated: new Date().toISOString()
+      });
+    }
+  });
+
+  const mergedList = Array.from(map.values());
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(mergedList));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('inspection-records-updated'));
+    }
+  } catch (e) {
+    console.error('Failed to save merged records:', e);
+  }
+  return mergedList;
 }
 
 /**
@@ -540,7 +602,13 @@ export function getOrCreateEquipmentInspection(
   formId?: string
 ): EquipmentMonthlyInspectionRecord {
   const all = loadInspectionRecords();
-  const existing = all.find(r => r.equipmentId === equipmentId && r.year === year);
+  const cleanId = String(equipmentId || '').trim().toLowerCase();
+  const targetYear = Number(year);
+
+  const existing = all.find(r => 
+    String(r.equipmentId || '').trim().toLowerCase() === cleanId && 
+    Number(r.year) === targetYear
+  );
   
   const assignedFormId = formId || getEquipmentAssignedFormId(equipmentId);
   const formTemplate = getFormTemplateById(assignedFormId);
@@ -586,7 +654,13 @@ export function updateMonthCheckData(
   formId?: string
 ): EquipmentMonthlyInspectionRecord {
   const all = loadInspectionRecords();
-  let recordIndex = all.findIndex(r => r.equipmentId === equipmentId && r.year === year);
+  const cleanId = String(equipmentId || '').trim().toLowerCase();
+  const targetYear = Number(year);
+
+  let recordIndex = all.findIndex(r => 
+    String(r.equipmentId || '').trim().toLowerCase() === cleanId && 
+    Number(r.year) === targetYear
+  );
 
   const assignedFormId = formId || getEquipmentAssignedFormId(equipmentId);
   const formTemplate = getFormTemplateById(assignedFormId);
@@ -630,7 +704,14 @@ export function updateMonthCheckData(
  */
 export function changeRecordFormTemplate(equipmentId: string, year: number, newFormId: string): EquipmentMonthlyInspectionRecord | null {
   const all = loadInspectionRecords();
-  const index = all.findIndex(r => r.equipmentId === equipmentId && r.year === year);
+  const cleanId = String(equipmentId || '').trim().toLowerCase();
+  const targetYear = Number(year);
+
+  const index = all.findIndex(r => 
+    String(r.equipmentId || '').trim().toLowerCase() === cleanId && 
+    Number(r.year) === targetYear
+  );
+
   const formTemplate = getFormTemplateById(newFormId);
   setEquipmentAssignedFormId(equipmentId, newFormId);
 

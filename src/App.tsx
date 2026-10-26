@@ -19,8 +19,11 @@ import {
   fetchAuthorizedUsers,
   fetchToolLoansData,
   addNewToolLoan,
-  returnToolLoan
+  returnToolLoan,
+  ensurePMInspectionsSheetExist,
+  fetchPMInspectionsData
 } from './utils/sheets';
+import { mergeRemoteInspectionRecords } from './utils/inspectionStorage';
 import { SparePart, Transaction, Equipment, MaintenanceLog, SpareLoan } from './types';
 import { sendPartWithdrawAlert, sendPartRestockAlert, getTelegramSettings, saveTelegramSettings, sendTelegramMessage, sendToolLoanAlert, sendToolReturnAlert } from './utils/telegram';
 
@@ -233,6 +236,13 @@ export default function App() {
 
       const toolLoans = await fetchToolLoansData(accessToken, sheetId);
       setLoans(toolLoans);
+
+      // โหลดและซิงค์ข้อมูล PM Inspection
+      await ensurePMInspectionsSheetExist(accessToken, sheetId);
+      const remoteInspections = await fetchPMInspectionsData(accessToken, sheetId);
+      if (remoteInspections && remoteInspections.length > 0) {
+        mergeRemoteInspectionRecords(remoteInspections);
+      }
     } catch (error: any) {
       console.error('Fetch data error:', error);
       // หากดึงล้มเหลว อาจเกิดจากสิทธิ์หมดอายุ หรือระบุไอดีสเปรดชีตผิดพลาด

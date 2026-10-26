@@ -120,6 +120,25 @@ export default function MonthlyEquipmentInspectionModal({
     loadEntryFormData(record, entryMonth);
   }, [selectedEqId, selectedYear]);
 
+  // Listen for storage updates
+  useEffect(() => {
+    const handleStorageUpdate = () => {
+      if (!selectedEqId) return;
+      const currentEq = equipments.find(e => e.id === selectedEqId);
+      if (!currentEq) return;
+      const record = getOrCreateEquipmentInspection(
+        currentEq.id,
+        currentEq.name,
+        currentEq.assetCode,
+        selectedYear,
+        'เครื่องแพ็คสายรัดพลาสติก'
+      );
+      setInspectionRecord(record);
+    };
+    window.addEventListener('inspection-records-updated', handleStorageUpdate);
+    return () => window.removeEventListener('inspection-records-updated', handleStorageUpdate);
+  }, [selectedEqId, selectedYear, equipments]);
+
   // Load entry form with month data
   const loadEntryFormData = (record: EquipmentMonthlyInspectionRecord, month: number) => {
     const monthData = record.months[month];
@@ -141,6 +160,9 @@ export default function MonthlyEquipmentInspectionModal({
         1: 'pass', 2: 'pass', 3: 'pass', 4: 'pass', 5: 'pass', 6: 'pass', 7: 'pass'
       });
       setEntryIssues('');
+      setEntryTechName('วิโรจน์');
+      setEntryEngName('กู้เกียรติ');
+      setEntryMgrName('ชมภู่');
       setEntryCheckedDate(new Date().toISOString().slice(0, 10));
       setEntryReInspectedDate(new Date().toISOString().slice(0, 10));
       setEntryReInspectionStatus('pending');
@@ -150,18 +172,65 @@ export default function MonthlyEquipmentInspectionModal({
 
   const handleMonthChange = (month: number) => {
     setEntryMonth(month);
-    if (inspectionRecord) {
-      loadEntryFormData(inspectionRecord, month);
+    if (selectedEqId) {
+      const currentEq = equipments.find(e => e.id === selectedEqId);
+      const record = getOrCreateEquipmentInspection(
+        selectedEqId,
+        currentEq?.name || selectedEqId,
+        currentEq?.assetCode,
+        selectedYear,
+        'เครื่องแพ็คสายรัดพลาสติก'
+      );
+      setInspectionRecord(record);
+      loadEntryFormData(record, month);
     }
+  };
+
+  // Helper method to auto-save month entry form
+  const saveCurrentMonthData = (overrides: Partial<MonthlyCheckMonthData> = {}) => {
+    if (!selectedEqId) return;
+    const currentEq = equipments.find(e => e.id === selectedEqId);
+
+    const newResults = overrides.itemResults !== undefined ? overrides.itemResults : entryResults;
+    const hasFailure = Object.values(newResults).some(s => s === 'fail');
+
+    const monthData: MonthlyCheckMonthData = {
+      itemResults: newResults,
+      issuesNote: overrides.issuesNote !== undefined ? overrides.issuesNote : entryIssues.trim(),
+      technicianName: overrides.technicianName !== undefined ? overrides.technicianName : entryTechName.trim(),
+      technicianDate: overrides.technicianDate !== undefined ? overrides.technicianDate : entryCheckedDate,
+      engineerName: overrides.engineerName !== undefined ? overrides.engineerName : entryEngName.trim(),
+      reInspectedDate: overrides.reInspectedDate !== undefined ? overrides.reInspectedDate : entryReInspectedDate,
+      reInspectionStatus: overrides.reInspectionStatus !== undefined ? overrides.reInspectionStatus : entryReInspectionStatus,
+      reInspectionNote: overrides.reInspectionNote !== undefined ? overrides.reInspectionNote : entryReInspectionNote.trim(),
+      managerName: overrides.managerName !== undefined ? overrides.managerName : entryMgrName.trim(),
+      checkedDate: overrides.checkedDate !== undefined ? overrides.checkedDate : entryCheckedDate,
+      isSpareSwapped: overrides.isSpareSwapped !== undefined ? overrides.isSpareSwapped : hasFailure
+    };
+
+    const updated = updateMonthCheckData(
+      selectedEqId,
+      selectedYear,
+      entryMonth,
+      monthData,
+      currentEq?.name,
+      currentEq?.assetCode
+    );
+    setInspectionRecord({ ...updated });
   };
 
   // Quick verify by Re-Inspector (Engineer)
   const handleQuickVerifyByEngineer = () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const note = entryReInspectionNote.trim() || 'สุ่มตรวจสอบหน้างานจริง รอยต่อเชื่อมและระบบกรองลมได้มาตรฐานเรียบร้อย';
     setEntryReInspectionStatus('verified');
-    setEntryReInspectedDate(new Date().toISOString().slice(0, 10));
-    if (!entryReInspectionNote.trim()) {
-      setEntryReInspectionNote('สุ่มตรวจสอบหน้างานจริง รอยต่อเชื่อมและระบบกรองลมได้มาตรฐานเรียบร้อย');
-    }
+    setEntryReInspectedDate(today);
+    setEntryReInspectionNote(note);
+    saveCurrentMonthData({
+      reInspectionStatus: 'verified',
+      reInspectedDate: today,
+      reInspectionNote: note
+    });
   };
 
   // Quick toggle in matrix view
@@ -201,34 +270,8 @@ export default function MonthlyEquipmentInspectionModal({
 
   // Save entry form
   const handleSaveEntryForm = () => {
-    if (!inspectionRecord || !selectedEqId) return;
-
-    const hasFailure = Object.values(entryResults).some(s => s === 'fail');
-
-    const monthData: MonthlyCheckMonthData = {
-      itemResults: entryResults,
-      issuesNote: entryIssues.trim(),
-      technicianName: entryTechName.trim(),
-      technicianDate: entryCheckedDate,
-      engineerName: entryEngName.trim(),
-      reInspectedDate: entryReInspectedDate,
-      reInspectionStatus: entryReInspectionStatus,
-      reInspectionNote: entryReInspectionNote.trim(),
-      managerName: entryMgrName.trim(),
-      checkedDate: entryCheckedDate,
-      isSpareSwapped: hasFailure
-    };
-
-    const currentEq = equipments.find(e => e.id === selectedEqId);
-    const updated = updateMonthCheckData(
-      selectedEqId,
-      selectedYear,
-      entryMonth,
-      monthData,
-      currentEq?.name,
-      currentEq?.assetCode
-    );
-    setInspectionRecord({ ...updated });
+    if (!selectedEqId) return;
+    saveCurrentMonthData();
     setIsSavedSuccess(true);
     setTimeout(() => setIsSavedSuccess(false), 3000);
   };

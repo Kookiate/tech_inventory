@@ -53,6 +53,12 @@ export async function createNewInventorySpreadsheet(accessToken: string, creator
               gridProperties: { rowCount: 100, columnCount: 5 },
             },
           },
+          {
+            properties: {
+              title: 'PMInspections',
+              gridProperties: { rowCount: 1000, columnCount: 10 },
+            },
+          },
         ],
       }),
     });
@@ -1620,6 +1626,172 @@ export async function returnToolLoan(
   } catch (error: any) {
     console.error('returnToolLoan error:', error);
     throw error;
+  }
+}
+
+/**
+ * ตรวจสอบและสร้างชีต PMInspections ในกรณีที่เปิดชีตเก่าที่ยังไม่มี
+ */
+export async function ensurePMInspectionsSheetExist(accessToken: string, spreadsheetId: string): Promise<void> {
+  try {
+    const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!response.ok) return;
+
+    const data = await response.json();
+    const sheetTitles = (data.sheets || []).map((s: any) => s.properties?.title);
+
+    if (!sheetTitles.includes('PMInspections')) {
+      const requests = [{
+        addSheet: {
+          properties: { title: 'PMInspections', gridProperties: { rowCount: 1000, columnCount: 10 } }
+        }
+      }];
+
+      const updateResponse = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ requests }),
+      });
+
+      if (updateResponse.ok) {
+        await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/PMInspections!A1:F1?valueInputOption=USER_ENTERED`, {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            values: [['RecordID', 'EquipmentID', 'Year', 'FormID', 'MonthsDataJSON', 'LastUpdated']]
+          }),
+        });
+      }
+    }
+  } catch (error) {
+    console.error('ensurePMInspectionsSheetExist error:', error);
+  }
+}
+
+/**
+ * ดึงข้อมูลประวัติการตรวจเช็ค PM จากชีต PMInspections
+ */
+export async function fetchPMInspectionsData(accessToken: string, spreadsheetId: string): Promise<any[]> {
+  try {
+    const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/PMInspections!A2:F1000`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!response.ok) return [];
+
+    const data = await response.json();
+    const rows = data.values || [];
+
+    const records: any[] = [];
+    rows.forEach((row: any) => {
+      try {
+        const id = row[0] ? String(row[0]).trim() : '';
+        const equipmentId = row[1] ? String(row[1]).trim() : '';
+        const year = row[2] ? Number(row[2]) : new Date().getFullYear();
+        const formId = row[3] ? String(row[3]).trim() : '';
+        const monthsDataJson = row[4] ? String(row[4]) : '{}';
+        const lastUpdated = row[5] ? String(row[5]) : new Date().toISOString();
+
+        if (equipmentId) {
+          const months = JSON.parse(monthsDataJson);
+          records.push({
+            id: id || `INSP-${equipmentId}-${year}`,
+            equipmentId,
+            equipmentName: equipmentId,
+            year,
+            formId,
+            formTitle: formId,
+            months,
+            lastUpdated
+          });
+        }
+      } catch (e) {
+        console.error('Failed to parse row in PMInspections:', e);
+      }
+    });
+
+    return records;
+  } catch (error) {
+    console.error('Error fetching PMInspections:', error);
+    return [];
+  }
+}
+
+/**
+ * บันทึกหรืออัปเดตข้อมูล PM Inspection ลงชีต PMInspections
+ */
+export async function savePMInspectionRecordToSheet(
+  accessToken: string,
+  spreadsheetId: string,
+  record: any
+): Promise<void> {
+  try {
+    const fetchResponse = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/PMInspections!A1:F1000`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!fetchResponse.ok) return;
+
+    const data = await fetchResponse.json();
+    const rows = data.values || [];
+
+    const cleanEqId = String(record.equipmentId || '').trim().toLowerCase();
+    const targetYear = Number(record.year);
+
+    let rowIndex = -1;
+    for (let i = 1; i < rows.length; i++) {
+      const rowEqId = String(rows[i][1] || '').trim().toLowerCase();
+      const rowYear = Number(rows[i][2]);
+      if (rowEqId === cleanEqId && rowYear === targetYear) {
+        rowIndex = i + 1; // 1-indexed
+        break;
+      }
+    }
+
+    const rowValue = [
+      record.id || `INSP-${record.equipmentId}-${record.year}`,
+      record.equipmentId,
+      record.year,
+      record.formId || '',
+      JSON.stringify(record.months || {}),
+      new Date().toISOString()
+    ];
+
+    if (rowIndex > 1) {
+      await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/PMInspections!A${rowIndex}:F${rowIndex}?valueInputOption=USER_ENTERED`,
+        {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ values: [rowValue] }),
+        }
+      );
+    } else {
+      await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/PMInspections!A:F:append?valueInputOption=USER_ENTERED`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ values: [rowValue] }),
+        }
+      );
+    }
+  } catch (error) {
+    console.error('savePMInspectionRecordToSheet error:', error);
   }
 }
 
