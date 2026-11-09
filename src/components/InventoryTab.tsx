@@ -1,11 +1,33 @@
 import React, { useState } from 'react';
-import { SparePart } from '../types';
-import { Search, AlertTriangle, CheckCircle, ArrowRightLeft, RefreshCw, Layers, Plus, X, FolderPlus, HelpCircle, Edit, QrCode, Printer, ChevronDown } from 'lucide-react';
+import { SparePart, Transaction } from '../types';
+import { 
+  Search, 
+  AlertTriangle, 
+  CheckCircle, 
+  ArrowRightLeft, 
+  RefreshCw, 
+  Layers, 
+  Plus, 
+  X, 
+  FolderPlus, 
+  HelpCircle, 
+  Edit, 
+  QrCode, 
+  Printer, 
+  ChevronDown,
+  History,
+  Download,
+  ArrowUpRight,
+  ArrowDownLeft,
+  Clock,
+  FileText
+} from 'lucide-react';
 import { getEmbeddableImageUrl, isGoogleDriveUrl } from '../utils/image';
 import QRCode from 'qrcode';
 
 interface InventoryTabProps {
   parts: SparePart[];
+  transactions?: Transaction[];
   onQuickAction: (partId: string) => void;
   onRefresh: () => Promise<void>;
   isRefreshing: boolean;
@@ -35,7 +57,7 @@ interface InventoryTabProps {
   }) => Promise<void>;
 }
 
-export default function InventoryTab({ parts, onQuickAction, onRefresh, isRefreshing, onAddPart, onUpdatePart }: InventoryTabProps) {
+export default function InventoryTab({ parts, transactions = [], onQuickAction, onRefresh, isRefreshing, onAddPart, onUpdatePart }: InventoryTabProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ทั้งหมด');
   const [isCatDropdownOpen, setIsCatDropdownOpen] = useState(false);
@@ -63,6 +85,33 @@ export default function InventoryTab({ parts, onQuickAction, onRefresh, isRefres
   // QR Code states
   const [selectedPartForQr, setSelectedPartForQr] = useState<SparePart | null>(null);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+
+  // Part History Modal states
+  const [selectedPartForHistory, setSelectedPartForHistory] = useState<SparePart | null>(null);
+  const [historySearchTerm, setHistorySearchTerm] = useState('');
+  const [historyTypeFilter, setHistoryTypeFilter] = useState<'all' | 'เบิกจ่าย' | 'รับเข้า'>('all');
+
+  // ฟังก์ชันส่งออกไฟล์ CSV สำหรับประวัติการรับเข้า-เบิกจ่ายรหัสอะไหล่นั้นๆ
+  const handleExportPartHistoryCsv = (part: SparePart, historyList: Transaction[]) => {
+    const headers = ['วันเวลา', 'รหัสอะไหล่', 'ชื่ออะไหล่', 'ประเภทรายการ', 'จำนวน', 'หน่วยนับ', 'ช่างเทคนิค/ผู้ทำรายการ', 'หมายเหตุ/เครื่องจักร'];
+    const rows = historyList.map(t => [
+      `"${t.timestamp}"`,
+      `"${t.partId}"`,
+      `"${t.partName || part.name}"`,
+      `"${t.type}"`,
+      t.quantity,
+      `"${part.unit}"`,
+      `"${t.technician}"`,
+      `"${(t.machineNote || '').replace(/"/g, '""')}"`
+    ]);
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `History_${part.id}_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+  };
 
   const handleShowQrSticker = async (part: SparePart) => {
     setSelectedPartForQr(part);
@@ -507,6 +556,19 @@ export default function InventoryTab({ parts, onQuickAction, onRefresh, isRefres
                       </td>
                       <td className="py-4 px-4 text-center whitespace-nowrap text-xs">
                         <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedPartForHistory(part);
+                              setHistorySearchTerm('');
+                              setHistoryTypeFilter('all');
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold rounded-lg hover:bg-emerald-100 focus:outline-none transition-all cursor-pointer active:scale-95"
+                            title="ดูประวัติการรับเข้าและเบิกจ่ายอะไหล่รหัสนี้"
+                          >
+                            <History className="h-3 w-3 text-emerald-600" />
+                            <span>ประวัติ</span>
+                          </button>
                           <button
                             type="button"
                             onClick={() => onQuickAction(part.id)}
@@ -965,6 +1027,272 @@ export default function InventoryTab({ parts, onQuickAction, onRefresh, isRefres
           </div>
         </div>
       )}
+
+      {/* โมดูลหน้าต่างป๊อปอัปแสดงประวัติการรับ-เบิกของ Code อะไหล่นั้นๆ (Part Transaction History Modal) */}
+      {selectedPartForHistory && (() => {
+        const partHistories = (transactions || []).filter(
+          t => t.partId && t.partId.trim().toLowerCase() === selectedPartForHistory.id.trim().toLowerCase()
+        );
+
+        const totalReceived = partHistories
+          .filter(t => t.type === 'รับเข้า')
+          .reduce((sum, t) => sum + (Number(t.quantity) || 0), 0);
+
+        const totalWithdrawn = partHistories
+          .filter(t => t.type === 'เบิกจ่าย')
+          .reduce((sum, t) => sum + (Number(t.quantity) || 0), 0);
+
+        const filteredHistories = partHistories.filter(t => {
+          const matchesType = historyTypeFilter === 'all' || t.type === historyTypeFilter;
+          const searchLower = historySearchTerm.toLowerCase();
+          const matchesSearch = 
+            (t.technician || '').toLowerCase().includes(searchLower) ||
+            (t.machineNote || '').toLowerCase().includes(searchLower) ||
+            (t.timestamp || '').toLowerCase().includes(searchLower);
+          return matchesType && matchesSearch;
+        });
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl w-full max-w-4xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden max-h-[90vh] animate-scale-up font-sans">
+              
+              {/* ส่วนหัว Modal */}
+              <div className="bg-slate-900 px-6 py-4 text-white flex items-center justify-between border-b-4 border-emerald-500">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-emerald-500/20 border border-emerald-500/30 rounded-xl text-emerald-400">
+                    <History className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-display font-bold text-base flex items-center gap-2">
+                      <span>ประวัติการรับเข้า & เบิกจ่ายอะไหล่</span>
+                      <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300">
+                        {selectedPartForHistory.id}
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {selectedPartForHistory.name} ({selectedPartForHistory.category})
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setSelectedPartForHistory(null)}
+                  className="text-slate-400 hover:text-white transition-all cursor-pointer p-1.5 rounded-lg hover:bg-slate-800"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* ส่วนเนื้อหาหลัก */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-slate-50/50">
+                
+                {/* การ์ดสรุปข้อมูลอะไหล่และสถิติ (KPI Summary) */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                    <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
+                      <span>จำนวนรายการทั้งหมด</span>
+                      <FileText className="h-4 w-4 text-blue-500" />
+                    </div>
+                    <div className="mt-2 flex items-baseline gap-1.5">
+                      <span className="font-mono text-2xl font-black text-slate-800">{partHistories.length}</span>
+                      <span className="text-xs font-medium text-slate-500">ครั้ง</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-emerald-50/70 p-4 rounded-xl border border-emerald-200/80 shadow-sm flex flex-col justify-between">
+                    <div className="flex items-center justify-between text-emerald-800 text-xs font-semibold">
+                      <span>รับเข้าสะสม</span>
+                      <ArrowDownLeft className="h-4 w-4 text-emerald-600" />
+                    </div>
+                    <div className="mt-2 flex items-baseline gap-1.5">
+                      <span className="font-mono text-2xl font-black text-emerald-700">+{totalReceived.toLocaleString()}</span>
+                      <span className="text-xs font-semibold text-emerald-600">{selectedPartForHistory.unit}</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-amber-50/70 p-4 rounded-xl border border-amber-200/80 shadow-sm flex flex-col justify-between">
+                    <div className="flex items-center justify-between text-amber-900 text-xs font-semibold">
+                      <span>เบิกจ่ายสะสม</span>
+                      <ArrowUpRight className="h-4 w-4 text-amber-600" />
+                    </div>
+                    <div className="mt-2 flex items-baseline gap-1.5">
+                      <span className="font-mono text-2xl font-black text-amber-700">-{totalWithdrawn.toLocaleString()}</span>
+                      <span className="text-xs font-semibold text-amber-600">{selectedPartForHistory.unit}</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-50/70 p-4 rounded-xl border border-blue-200/80 shadow-sm flex flex-col justify-between">
+                    <div className="flex items-center justify-between text-blue-900 text-xs font-semibold">
+                      <span>คงเหลือปัจจุบัน</span>
+                      <Layers className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <div className="mt-2 flex items-baseline gap-1.5">
+                      <span className="font-mono text-2xl font-black text-blue-800">{selectedPartForHistory.quantity.toLocaleString()}</span>
+                      <span className="text-xs font-semibold text-blue-600">{selectedPartForHistory.unit}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* คอนโทรลบ็อกซ์ค้นหาและฟิลเตอร์ */}
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+                  {/* ฟิลเตอร์ค้นหา */}
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      value={historySearchTerm}
+                      onChange={(e) => setHistorySearchTerm(e.target.value)}
+                      placeholder="ค้นหาตามชื่อช่าง, วันที่, หรือหมายเหตุเครื่องจักร..."
+                      className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 font-sans"
+                    />
+                    <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                  </div>
+
+                  {/* ปุ่มสลับประเภทรายการ */}
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setHistoryTypeFilter('all')}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                        historyTypeFilter === 'all'
+                          ? 'bg-slate-800 text-white border-slate-800'
+                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      ทั้งหมด ({partHistories.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHistoryTypeFilter('รับเข้า')}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                        historyTypeFilter === 'รับเข้า'
+                          ? 'bg-emerald-600 text-white border-emerald-600'
+                          : 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50'
+                      }`}
+                    >
+                      รับเข้าเท่านั้น
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHistoryTypeFilter('เบิกจ่าย')}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                        historyTypeFilter === 'เบิกจ่าย'
+                          ? 'bg-amber-600 text-white border-amber-600'
+                          : 'bg-white text-amber-700 border-amber-200 hover:bg-amber-50'
+                      }`}
+                    >
+                      เบิกจ่ายเท่านั้น
+                    </button>
+                  </div>
+
+                  {/* ปุ่มส่งออก CSV */}
+                  <button
+                    type="button"
+                    onClick={() => handleExportPartHistoryCsv(selectedPartForHistory, filteredHistories)}
+                    disabled={filteredHistories.length === 0}
+                    className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 border border-slate-300 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-200 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span>ดาวน์โหลด CSV</span>
+                  </button>
+                </div>
+
+                {/* ตารางแสดงประวัติรายการ */}
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 text-xs uppercase tracking-wider font-bold">
+                          <th className="py-3 px-4">วัน-เวลา (Timestamp)</th>
+                          <th className="py-3 px-4 text-center">ประเภทรายการ</th>
+                          <th className="py-3 px-4 text-right">จำนวน</th>
+                          <th className="py-3 px-4">ผู้ทำรายการ (Technician)</th>
+                          <th className="py-3 px-4">หมายเหตุ / เครื่องจักร</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-xs">
+                        {filteredHistories.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="py-12 text-center text-slate-400">
+                              <div className="flex flex-col items-center justify-center gap-2">
+                                <Clock className="h-8 w-8 text-slate-300 stroke-1" />
+                                <span className="font-medium text-slate-500">ไม่พบประวัติรายการสำหรับรหัสอะไหล่นี้</span>
+                                <span className="text-[11px] text-slate-400">
+                                  {historySearchTerm ? 'ลองเปลี่ยนคำค้นหาหรือตัวกรอง' : 'ยังไม่มีการบันทึกการรับเข้าหรือเบิกจ่ายชิ้นส่วนนี้'}
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredHistories.map((tx, idx) => {
+                            const isReceive = tx.type === 'รับเข้า';
+                            return (
+                              <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                                <td className="py-3 px-4 font-mono text-slate-600 whitespace-nowrap">
+                                  {tx.timestamp}
+                                </td>
+                                <td className="py-3 px-4 text-center whitespace-nowrap">
+                                  {isReceive ? (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-200">
+                                      <ArrowDownLeft className="h-3 w-3 text-emerald-600" />
+                                      <span>รับเข้า</span>
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 font-bold border border-amber-200">
+                                      <ArrowUpRight className="h-3 w-3 text-amber-600" />
+                                      <span>เบิกจ่าย</span>
+                                    </span>
+                                  )}
+                                </td>
+                                <td className={`py-3 px-4 text-right font-mono font-bold text-sm whitespace-nowrap ${
+                                  isReceive ? 'text-emerald-600' : 'text-amber-600'
+                                }`}>
+                                  {isReceive ? `+${tx.quantity}` : `-${tx.quantity}`} {selectedPartForHistory.unit}
+                                </td>
+                                <td className="py-3 px-4 font-semibold text-slate-800 whitespace-nowrap">
+                                  {tx.technician || '-'}
+                                </td>
+                                <td className="py-3 px-4 text-slate-600 max-w-xs truncate">
+                                  {tx.machineNote || '-'}
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* ส่วนท้าย Modal */}
+              <div className="bg-white px-6 py-4 border-t border-slate-200 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const partId = selectedPartForHistory.id;
+                    setSelectedPartForHistory(null);
+                    onQuickAction(partId);
+                  }}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-md shadow-blue-600/10"
+                >
+                  <ArrowRightLeft className="h-3.5 w-3.5" />
+                  <span>ทำรายการเบิก-รับอะไหล่นี้ทันที</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedPartForHistory(null)}
+                  className="px-5 py-2 border border-slate-300 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all cursor-pointer active:scale-95"
+                >
+                  ปิดหน้าต่าง
+                </button>
+              </div>
+
+            </div>
+          </div>
+        );
+      })()}
 
       {/* โครงสร้างพิมพ์สติกเกอร์ที่มองไม่เห็นในหน้าจอปกติ แต่ใช้พิมพ์โดยเฉพาะ (Print-only view) */}
       {selectedPartForQr && (

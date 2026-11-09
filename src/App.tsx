@@ -41,6 +41,7 @@ import InspectionTab from './components/InspectionTab';
 import TelegramSettingsModal from './components/TelegramSettingsModal';
 import UnauthorizedView from './components/UnauthorizedView';
 import PermissionsTab from './components/PermissionsTab';
+import PresentationTab from './components/PresentationTab';
 
 // ไอคอนและแอนิเมชัน
 import { 
@@ -61,7 +62,8 @@ import {
   Bell,
   Shield,
   Repeat,
-  ClipboardCheck
+  ClipboardCheck,
+  Workflow
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -87,7 +89,7 @@ export default function App() {
   const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLog[]>([]);
   const [loans, setLoans] = useState<SpareLoan[]>([]);
   
-  const [activeTab, setActiveTab] = useState<'transaction' | 'inventory' | 'equipment' | 'inspection' | 'maintenance' | 'loans' | 'dashboard' | 'appsscript' | 'permissions'>('transaction');
+  const [activeTab, setActiveTab] = useState<'transaction' | 'inventory' | 'equipment' | 'inspection' | 'maintenance' | 'loans' | 'dashboard' | 'appsscript' | 'permissions' | 'presentation'>('transaction');
   
   // ย้ายส่งรหัสเบิกด่วน และรหัสเครื่องตรวจเช็ค PM ด่วน
   const [preSelectedPartId, setPreSelectedPartId] = useState<string | undefined>(undefined);
@@ -1107,6 +1109,19 @@ export default function App() {
               <Shield className="h-4 w-4 shrink-0 text-rose-500" />
               <span>จัดการสิทธิ์เข้าใช้งาน</span>
             </button>
+
+            <button
+              onClick={() => setActiveTab('presentation')}
+              className={`flex-1 min-w-[140px] px-3 sm:px-4 py-3 border-b-4 flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === 'presentation' 
+                  ? 'text-blue-600 border-blue-600 font-bold bg-blue-50/40' 
+                  : 'text-slate-600 border-transparent hover:border-slate-300 hover:bg-slate-50 font-medium'
+              }`}
+              title="ผังระบบ Mindmap, System Flow และเอกสาร PDF นำเสนอ"
+            >
+              <Workflow className="h-4 w-4 shrink-0 text-emerald-600" />
+              <span>Mindmap & Flow (PDF)</span>
+            </button>
           </div>
         </div>
       </div>
@@ -1136,6 +1151,7 @@ export default function App() {
             {activeTab === 'inventory' && (
               <InventoryTab 
                 parts={parts} 
+                transactions={transactions}
                 onQuickAction={handleQuickWithdrawAction}
                 onRefresh={() => loadAllData(token!, spreadsheetId)}
                 isRefreshing={isLoadingData}
@@ -1222,6 +1238,10 @@ export default function App() {
                 currentUserEmail={user?.email || ''}
                 onRefreshData={() => loadAllData(token!, spreadsheetId)}
               />
+            )}
+
+            {activeTab === 'presentation' && (
+              <PresentationTab />
             )}
           </motion.div>
         </AnimatePresence>
